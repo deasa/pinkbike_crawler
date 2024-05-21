@@ -47,6 +47,11 @@ func main() {
 		log.Fatalf("could not write listings to file: %v", err)
 	}
 
+	err = exporter.ExportToGoogleSheets(listings)
+	if err != nil {
+		log.Fatalf("could not export listings to Google Sheets: %v", err)
+	}
+
 	if err = browser.Close(); err != nil {
 		log.Fatalf("could not close browser: %v", err)
 	}
