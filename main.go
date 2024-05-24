@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"pinkbike-scraper/pkg/exporter"
@@ -25,7 +26,7 @@ func main() {
 	}
 
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(false),
+		Headless: playwright.Bool(true),
 	})
 
 	if err != nil {
@@ -48,8 +49,9 @@ func main() {
 
 	var newListings []scraper.Listing
 	pages := 1
-	for nextPageURL != "" && pages <= 1 {
+	for nextPageURL != "" && pages <= 500 {
 		pages++
+		fmt.Println("Scraping page: ", pages)
 
 		if _, err = page.Goto(urlBase+nextPageURL); err != nil {
 			log.Fatalf("could not goto: %v", err)
