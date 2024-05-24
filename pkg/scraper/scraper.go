@@ -2,13 +2,14 @@ package scraper
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/playwright-community/playwright-go"
 )
 
 type Listing struct {
-	Title, Price, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel string
+	Title, Year, Price, Currency, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel string
 }
 
 func ScrapePage(page playwright.Page) ([]Listing, string, error) {
@@ -30,9 +31,6 @@ func ScrapePage(page playwright.Page) ([]Listing, string, error) {
 
 	// Find the "Next Page" link
 	nextPageLink := page.Locator(`xpath=//a[text()='Next Page']`)
-
-	c, err := nextPageLink.Count()
-	fmt.Print("count: ", c)
 
 	// Get the URL of the "Next Page" link
 	nextPageURL, err := nextPageLink.GetAttribute("href")
@@ -87,12 +85,14 @@ func getListing(entry playwright.Locator) Listing {
 
 	return Listing{
 		Title:         title,
+		Year: 		   extractYear(title),
 		Condition:     condition,
 		FrameSize:     frameSize,
 		WheelSize:     wheelSize,
 		FrontTravel:   frontTravel,
 		RearTravel:    rearTravel,
-		Price:         price,
+		Price:         extractPrice(price),
+		Currency:      extractCurrency(price),
 		FrameMaterial: material,
 	}
 }
@@ -109,7 +109,9 @@ func sanitize(l Listing) Listing {
 	newL := Listing{}
 
 	newL.Title = strings.TrimSpace(l.Title)
+	newL.Year = strings.TrimSpace(l.Year)
 	newL.Price = strings.TrimSpace(l.Price)
+	newL.Currency = strings.TrimSpace(l.Currency)
 	newL.Condition = parseItemDetail(l.Condition, "Condition :")
 	newL.FrameSize = parseItemDetail(l.FrameSize, "Frame Size :")
 	newL.WheelSize = parseItemDetail(l.WheelSize, "Wheel Size :")
@@ -127,4 +129,20 @@ func parseItemDetail(detail, label string) string {
 	}
 
 	return strings.TrimSpace(split[1])
+}
+
+func extractYear(title string) string {
+	reg := regexp.MustCompile(`\d{4}`)
+	s := reg.FindString(title)
+	return s
+}
+
+func extractCurrency(price string) string {
+	reg := regexp.MustCompile(`(CAD|USD)`)
+	return reg.FindString(price)
+}
+
+func extractPrice(price string) string {
+	reg := regexp.MustCompile(`[0-9,]+`)
+	return reg.FindString(price)
 }

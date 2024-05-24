@@ -48,7 +48,9 @@ func main() {
 
 	var newListings []scraper.Listing
 	pages := 1
-	for nextPageURL != "" && pages <= 2 {
+	for nextPageURL != "" && pages <= 1 {
+		pages++
+
 		if _, err = page.Goto(urlBase+nextPageURL); err != nil {
 			log.Fatalf("could not goto: %v", err)
 		}
@@ -59,7 +61,6 @@ func main() {
 		}
 
 		listings = append(listings, newListings...)
-		pages++
 	}
 
 	err = exporter.WriteListingsToFile(listings, "listings.csv")
