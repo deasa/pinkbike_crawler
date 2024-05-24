@@ -9,6 +9,10 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
+const (
+	urlBase = "https://www.pinkbike.com/buysell/list/"
+)
+
 func main() {
 	err := playwright.Install()
 	if err != nil {
@@ -33,13 +37,29 @@ func main() {
 		log.Fatalf("could not create page: %v", err)
 	}
 
-	if _, err = page.Goto("https://www.pinkbike.com/buysell/list/?category=2"); err != nil {
+	if _, err = page.Goto(urlBase+"?category=2"); err != nil {
 		log.Fatalf("could not goto: %v", err)
 	}
-
-	listings, err := scraper.ScrapePage(page)
+	
+	listings, nextPageURL, err := scraper.ScrapePage(page)
 	if err != nil {
 		log.Fatalf("could not scrape page: %v", err)
+	}
+
+	var newListings []scraper.Listing
+	pages := 1
+	for nextPageURL != "" && pages <= 2 {
+		if _, err = page.Goto(urlBase+nextPageURL); err != nil {
+			log.Fatalf("could not goto: %v", err)
+		}
+
+		newListings, nextPageURL, err = scraper.ScrapePage(page)
+		if err != nil {
+			log.Fatalf("could not scrape page: %v", err)
+		}
+
+		listings = append(listings, newListings...)
+		pages++
 	}
 
 	err = exporter.WriteListingsToFile(listings, "listings.csv")

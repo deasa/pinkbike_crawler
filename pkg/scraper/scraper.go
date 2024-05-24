@@ -11,25 +11,37 @@ type Listing struct {
 	Title, Price, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel string
 }
 
-func ScrapePage(page playwright.Page) ([]Listing, error) {
-	
-	entries, err := page.Locator("tr.bsitem-table").All()
+func ScrapePage(page playwright.Page) ([]Listing, string, error) {
+    entries, err := page.Locator("tr.bsitem-table").All()
+    if err != nil {
+        return nil, "", fmt.Errorf("could not get entries: %v", err)
+    }
+
+    var listings []Listing
+    for _, entry := range entries {
+        listings = append(listings, getListing(entry))
+    }
+
+    var sanitizedListings []Listing
+    for _, listing := range listings {
+        sanitizedListings = append(sanitizedListings, sanitize(listing))
+        fmt.Println(listing.Print())
+    }
+
+	// Find the "Next Page" link
+	nextPageLink := page.Locator(`xpath=//a[text()='Next Page']`)
+
+	c, err := nextPageLink.Count()
+	fmt.Print("count: ", c)
+
+	// Get the URL of the "Next Page" link
+	nextPageURL, err := nextPageLink.GetAttribute("href")
 	if err != nil {
-		return nil, fmt.Errorf("could not get entries: %v", err)
+		// If an error occurred, the link was not found
+		nextPageURL = ""
 	}
 
-	var listings []Listing
-	for _, entry := range entries {
-		listings = append(listings, getListing(entry))
-	}
-
-	var sanitizedListings []Listing
-	for _, listing := range listings {
-		sanitizedListings = append(sanitizedListings, sanitize(listing))
-		fmt.Println(listing.Print())
-	}
-
-	return sanitizedListings, nil
+	return sanitizedListings, nextPageURL, nil
 }
 
 func getListing(entry playwright.Locator) Listing {
