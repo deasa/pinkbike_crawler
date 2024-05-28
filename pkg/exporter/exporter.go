@@ -15,7 +15,7 @@ import (
 )
 
 
-func WriteListingsToFile(listings []scraper.Listing, filename string) error {
+func WriteListingsToFile(listings []scraper.RawListing, filename string) error {
     file, err := os.Create(filename)
     if err != nil {
         return err
@@ -42,7 +42,7 @@ func WriteListingsToFile(listings []scraper.Listing, filename string) error {
     return nil
 }
 
-func ExportToGoogleSheets(listings []scraper.Listing) error {
+func ExportToGoogleSheets(listings []scraper.RawListing) error {
 	// Create a new Google Sheets service client
 	ctx := context.Background()
 	srv, err := sheets.NewService(ctx, option.WithCredentialsFile("pinkbike-exporter-8bc8e681ffa1.json"))

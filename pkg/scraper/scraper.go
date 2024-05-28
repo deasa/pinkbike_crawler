@@ -6,24 +6,22 @@ import (
 	"strings"
 
 	"github.com/playwright-community/playwright-go"
+
+	"pinkbike-scraper/pkg/listing"
 )
 
-type Listing struct {
-	Title, Year, Price, Currency, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel string
-}
-
-func ScrapePage(page playwright.Page) ([]Listing, string, error) {
+func ScrapePage(page playwright.Page) ([]listing.RawListing, string, error) {
     entries, err := page.Locator("tr.bsitem-table").All()
     if err != nil {
         return nil, "", fmt.Errorf("could not get entries: %v", err)
     }
 
-    var listings []Listing
+    var listings []listing.RawListing
     for _, entry := range entries {
         listings = append(listings, getListing(entry))
     }
 
-    var sanitizedListings []Listing
+    var sanitizedListings []listing.RawListing
     for _, listing := range listings {
         sanitizedListings = append(sanitizedListings, sanitize(listing))
         // fmt.Println(listing.Print())
@@ -42,7 +40,7 @@ func ScrapePage(page playwright.Page) ([]Listing, string, error) {
 	return sanitizedListings, nextPageURL, nil
 }
 
-func getListing(entry playwright.Locator) Listing {
+func getListing(entry playwright.Locator) listing.RawListing {
 	title, err := entry.Locator("div.bsitem-title > a").TextContent()
 	if err != nil {
 		fmt.Printf("could not get title: %v\n", err)
@@ -83,35 +81,26 @@ func getListing(entry playwright.Locator) Listing {
 		fmt.Printf("could not get price: %v\n", err)
 	}
 
-	return Listing{
+	l := listing.RawListing{
 		Title:         title,
-		Year: 		   extractYear(title),
+		Price: 	   	   price,
 		Condition:     condition,
 		FrameSize:     frameSize,
 		WheelSize:     wheelSize,
 		FrontTravel:   frontTravel,
 		RearTravel:    rearTravel,
-		Price:         extractPrice(price),
-		Currency:      extractCurrency(price),
 		FrameMaterial: material,
 	}
-}
 
-
-func (l Listing) Print() string {
-	listing := sanitize(l)
-	return fmt.Sprintf("Title: %s\nPrice: %s\n\tCondition: %s\n\tFrame Size: %s\n\tWheel Size: %s\n\tFront Travel: %s\n\tRear Travel: %s\n\tFrame Material: %s\n\t\n",
-		listing.Title, listing.Price, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial)
+	return sanitize(l)
 }
 
 // Sanitize will remove spaces and labels from the listing
-func sanitize(l Listing) Listing {
-	newL := Listing{}
+func sanitize(l listing.RawListing) listing.RawListing {
+	newL := listing.RawListing{}
 
 	newL.Title = strings.TrimSpace(l.Title)
-	newL.Year = strings.TrimSpace(l.Year)
 	newL.Price = strings.TrimSpace(l.Price)
-	newL.Currency = strings.TrimSpace(l.Currency)
 	newL.Condition = parseItemDetail(l.Condition, "Condition :")
 	newL.FrameSize = parseItemDetail(l.FrameSize, "Frame Size :")
 	newL.WheelSize = parseItemDetail(l.WheelSize, "Wheel Size :")

@@ -47,7 +47,7 @@ func main() {
 		log.Fatalf("could not scrape page: %v", err)
 	}
 
-	var newListings []scraper.Listing
+	var newListings []scraper.RawListing
 	pages := 1
 	for nextPageURL != "" && pages <= 500 {
 		pages++
@@ -83,3 +83,9 @@ func main() {
 		log.Fatalf("could not stop Playwright: %v", err)
 	}
 }
+
+// todo return a slice of Listing structs instead of RawListing
+// todo add a mode that will skip the scraping and read from a file
+// todo scrape trail bike data
+
+// todo research training a machine learning model on this data to predict the price of a bike
