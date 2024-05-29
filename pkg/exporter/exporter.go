@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
@@ -54,7 +55,7 @@ func ExportToGoogleSheets(listings []listing.Listing) error {
 
 	// Define the spreadsheet ID and range
 	spreadsheetID := "16GYqn_Asp6_MhsJNAiMSphtUpJn6P1nNw-BRQG0s5Ik"
-	sheetName := "Sheet1"
+	sheetName := fmt.Sprintf("%sExport", time.Now().Format("2006-01-02 15:04"))
 	writeRange := sheetName + "!A1:ZZ"
 
 	// Prepare the data to be written to the sheet
@@ -76,6 +77,38 @@ func ExportToGoogleSheets(listings []listing.Listing) error {
 	}
 
 	return nil
+}
+
+func ReadListingsFromFile(filePath string) ([]listing.RawListing, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("could not open file: %v", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("could not read file: %v", err)
+	}
+
+	listings := make([]listing.RawListing, 0, len(records))
+	for _, record := range records {
+		l := listing.RawListing{
+			Title:         record[0],
+			Price:         record[1],
+			Condition:     record[2],
+			FrameSize:     record[3],
+			WheelSize:     record[4],
+			FrontTravel:   record[5],
+			RearTravel:    record[6],
+			FrameMaterial: record[7],
+		}
+
+		listings = append(listings, l)
+	}
+
+	return listings, nil
 }
 
 func createSheetAndShare(ctx context.Context, srv *sheets.Service, title, email, credentialFile string) {

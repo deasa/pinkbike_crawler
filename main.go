@@ -1,13 +1,12 @@
 package main
 
 import (
-	"fmt"
+	"flag"
 	"log"
 
 	"pinkbike-scraper/pkg/exporter"
+	"pinkbike-scraper/pkg/listing"
 	"pinkbike-scraper/pkg/scraper"
-
-	"github.com/playwright-community/playwright-go"
 )
 
 const (
@@ -15,76 +14,46 @@ const (
 )
 
 func main() {
-	err := playwright.Install()
-	if err != nil {
-		log.Fatalf("could not install playwright: %v", err)
-	}
+	fileMode := flag.Bool("fileMode", false, "Set to true to read listings from a file instead of web scraping")
+    filePath := flag.String("filePath", "", "The path to the file to read listings from when in file mode")
+    exportToGoogleSheets := flag.Bool("exportToGoogleSheets", false, "Set to true to export listings to Google Sheets")
+	exportToFile := flag.Bool("writeToFile", false, "Set to true to write listings to a file")
+	flag.Parse()
 
-	pw, err := playwright.Run()
-	if err != nil {
-		log.Fatalf("could not start playwright: %v", err)
-	}
-
-	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(true),
-	})
-
-	if err != nil {
-		log.Fatalf("could not launch browser: %v", err)
-	}
-
-	page, err := browser.NewPage()
-	if err != nil {
-		log.Fatalf("could not create page: %v", err)
-	}
-
-	if _, err = page.Goto(urlBase+"?category=2"); err != nil {
-		log.Fatalf("could not goto: %v", err)
-	}
-	
-	listings, nextPageURL, err := scraper.ScrapePage(page)
-	if err != nil {
-		log.Fatalf("could not scrape page: %v", err)
-	}
-
-	var newListings []scraper.RawListing
-	pages := 1
-	for nextPageURL != "" && pages <= 500 {
-		pages++
-		fmt.Println("Scraping page: ", pages)
-
-		if _, err = page.Goto(urlBase+nextPageURL); err != nil {
-			log.Fatalf("could not goto: %v", err)
-		}
-
-		newListings, nextPageURL, err = scraper.ScrapePage(page)
+	var listings []listing.RawListing
+	var err error
+    if *fileMode {
+        listings, err = exporter.ReadListingsFromFile(*filePath)
+        if err != nil {
+            log.Fatalf("could not read listings from file: %v", err)
+        }
+    } else {
+		listings, err = scraper.PerformWebScraping(urlBase, 5)
 		if err != nil {
-			log.Fatalf("could not scrape page: %v", err)
+			log.Fatalf("could not perform web scraping: %v", err)
 		}
+    }
 
-		listings = append(listings, newListings...)
+	refinedListings := make([]listing.Listing, 0, len(listings))
+	for _, listing := range listings {
+		refinedListings = append(refinedListings, listing.PostProcess())
 	}
 
-	err = exporter.WriteListingsToFile(listings, "listings.csv")
-	if err != nil {
-		log.Fatalf("could not write listings to file: %v", err)
+	if *exportToFile {
+		err = exporter.WriteListingsToFile(refinedListings, "listingsCache.csv")
+		if err != nil {
+			log.Fatalf("could not write listings to file: %v", err)
+		}
 	}
 
-	err = exporter.ExportToGoogleSheets(listings)
-	if err != nil {
-		log.Fatalf("could not export listings to Google Sheets: %v", err)
-	}
-
-	if err = browser.Close(); err != nil {
-		log.Fatalf("could not close browser: %v", err)
-	}
-
-	if err = pw.Stop(); err != nil {
-		log.Fatalf("could not stop Playwright: %v", err)
+	if *exportToGoogleSheets {
+		err = exporter.ExportToGoogleSheets(refinedListings)
+		if err != nil {
+			log.Fatalf("could not export listings to Google Sheets: %v", err)
+		}
 	}
 }
 
-// todo return a slice of Listing structs instead of RawListing
 // todo add a mode that will skip the scraping and read from a file
 // todo scrape trail bike data
 

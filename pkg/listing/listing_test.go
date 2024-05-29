@@ -4,7 +4,6 @@ import (
 	"testing"
 )
 
-// todo finish tests for parsers
 func TestExtractManufacturer(t *testing.T) {
 	tests := []struct {
 		name string

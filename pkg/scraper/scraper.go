@@ -2,7 +2,7 @@ package scraper
 
 import (
 	"fmt"
-
+	"log"
 	"strings"
 
 	"github.com/playwright-community/playwright-go"
@@ -10,7 +10,75 @@ import (
 	"pinkbike-scraper/pkg/listing"
 )
 
-func ScrapePage(page playwright.Page) ([]listing.RawListing, string, error) {
+func PerformWebScraping(url string, numPages int) ([]listing.RawListing, error) {
+	err := playwright.Install()
+	if err != nil {
+		log.Fatalf("could not install playwright: %v", err)
+	}
+
+	pw, err := playwright.Run()
+	if err != nil {
+		log.Fatalf("could not start playwright: %v", err)
+	}
+
+	defer func() {
+		if err = pw.Stop(); err != nil {
+			log.Fatalf("could not stop Playwright: %v", err)
+		}
+	}()
+
+	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+		Headless: playwright.Bool(true),
+	})
+
+	defer func() {
+		if err = browser.Close(); err != nil {
+			log.Fatalf("could not close browser: %v", err)
+		}
+	}()
+
+	if err != nil {
+		log.Fatalf("could not launch browser: %v", err)
+	}
+
+	page, err := browser.NewPage()
+	if err != nil {
+		log.Fatalf("could not create page: %v", err)
+	}
+
+	if _, err = page.Goto(url+"?category=2"); err != nil {
+		log.Fatalf("could not goto: %v", err)
+	}
+	
+	listings, nextPageURL, err := scrapePage(page)
+	if err != nil {
+		log.Fatalf("could not scrape page: %v", err)
+	}
+
+	var newListings []listing.RawListing
+	pages := 1
+	for nextPageURL != "" && pages <= numPages {
+		pages++
+		fmt.Println("Scraping page: ", pages)
+
+		if _, err = page.Goto(url+nextPageURL); err != nil {
+			log.Fatalf("could not goto: %v", err)
+		}
+
+		newListings, nextPageURL, err = scrapePage(page)
+		if err != nil {
+			log.Fatalf("could not scrape page: %v", err)
+		}
+
+		listings = append(listings, newListings...)
+	}
+
+	return listings, nil
+}
+
+// todo implement an auto-dedupe function that will compare each parsed listing from the page and will not add it to the list if it already exists
+
+func scrapePage(page playwright.Page) ([]listing.RawListing, string, error) {
     entries, err := page.Locator("tr.bsitem-table").All()
     if err != nil {
         return nil, "", fmt.Errorf("could not get entries: %v", err)
