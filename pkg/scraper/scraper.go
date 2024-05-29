@@ -2,7 +2,7 @@ package scraper
 
 import (
 	"fmt"
-	"regexp"
+
 	"strings"
 
 	"github.com/playwright-community/playwright-go"
@@ -118,20 +118,4 @@ func parseItemDetail(detail, label string) string {
 	}
 
 	return strings.TrimSpace(split[1])
-}
-
-func extractYear(title string) string {
-	reg := regexp.MustCompile(`\d{4}`)
-	s := reg.FindString(title)
-	return s
-}
-
-func extractCurrency(price string) string {
-	reg := regexp.MustCompile(`(CAD|USD)`)
-	return reg.FindString(price)
-}
-
-func extractPrice(price string) string {
-	reg := regexp.MustCompile(`[0-9,]+`)
-	return reg.FindString(price)
 }

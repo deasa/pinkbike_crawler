@@ -11,11 +11,11 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 
-	"pinkbike-scraper/pkg/scraper"
+	"pinkbike-scraper/pkg/listing"
 )
 
 
-func WriteListingsToFile(listings []scraper.RawListing, filename string) error {
+func WriteListingsToFile(listings []listing.Listing, filename string) error {
     file, err := os.Create(filename)
     if err != nil {
         return err
@@ -33,7 +33,7 @@ func WriteListingsToFile(listings []scraper.RawListing, filename string) error {
 
     // Write data
 	for _, listing := range listings {
-		err = writer.Write([]string{listing.Title, listing.Year, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial})
+		err = writer.Write([]string{listing.Title, listing.Year,listing.Manufacturer, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial})
 		if err != nil {
 			return err
 		}
@@ -42,7 +42,7 @@ func WriteListingsToFile(listings []scraper.RawListing, filename string) error {
     return nil
 }
 
-func ExportToGoogleSheets(listings []scraper.RawListing) error {
+func ExportToGoogleSheets(listings []listing.Listing) error {
 	// Create a new Google Sheets service client
 	ctx := context.Background()
 	srv, err := sheets.NewService(ctx, option.WithCredentialsFile("pinkbike-exporter-8bc8e681ffa1.json"))
@@ -61,7 +61,7 @@ func ExportToGoogleSheets(listings []scraper.RawListing) error {
 	var values [][]interface{}
 	values = append(values, []interface{}{"Title", "Year", "Price", "Currency", "Condition", "Frame Size", "Wheel Size", "Front Travel", "Rear Travel", "Material"})
 	for _, listing := range listings {
-		values = append(values, []interface{}{listing.Title, listing.Year, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial})
+		values = append(values, []interface{}{listing.Title, listing.Year, listing.Manufacturer, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial})
 	}
 
 	// Create the value range object
