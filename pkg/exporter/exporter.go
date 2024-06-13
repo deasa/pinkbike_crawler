@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
@@ -27,14 +26,14 @@ func WriteListingsToFile(listings []listing.Listing, filename string) error {
     defer writer.Flush()
 
     // Write header
-    err = writer.Write([]string{"Title", "Year", "Price", "Currency", "Condition", "Frame Size", "Wheel Size", "Front Travel", "Rear Travel", "Material"})
+    err = writer.Write([]string{"Title", "Year", "Manufacturer", "USD Price", "Original Currency", "Condition", "Frame Size", "Wheel Size", "Front Travel", "Rear Travel", "Material"})
     if err != nil {
         return err
     }
 
     // Write data
 	for _, listing := range listings {
-		err = writer.Write([]string{listing.Title, listing.Year,listing.Manufacturer, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial})
+		err = writer.Write([]string{listing.Title, listing.Year, listing.Manufacturer, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial})
 		if err != nil {
 			return err
 		}
@@ -55,12 +54,13 @@ func ExportToGoogleSheets(listings []listing.Listing) error {
 
 	// Define the spreadsheet ID and range
 	spreadsheetID := "16GYqn_Asp6_MhsJNAiMSphtUpJn6P1nNw-BRQG0s5Ik"
-	sheetName := fmt.Sprintf("%sExport", time.Now().Format("2006-01-02 15:04"))
-	writeRange := sheetName + "!A1:ZZ"
+	// sheetName := fmt.Sprintf("%sExport", time.Now().Format("2006-01-02 15:04"))
+
+	writeRange := "Sheet1" + "!A1:ZZ"
 
 	// Prepare the data to be written to the sheet
 	var values [][]interface{}
-	values = append(values, []interface{}{"Title", "Year", "Price", "Currency", "Condition", "Frame Size", "Wheel Size", "Front Travel", "Rear Travel", "Material"})
+	values = append(values, []interface{}{"Title", "Year", "Manufacturer", "USD Price", "Original Currency", "Condition", "Frame Size", "Wheel Size", "Front Travel", "Rear Travel", "Material"})
 	for _, listing := range listings {
 		values = append(values, []interface{}{listing.Title, listing.Year, listing.Manufacturer, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial})
 	}

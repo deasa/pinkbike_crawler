@@ -50,6 +50,8 @@ func PerformWebScraping(url string, numPages int) ([]listing.RawListing, error) 
 		log.Fatalf("could not goto: %v", err)
 	}
 	
+	fmt.Println("Scraping page: 1")
+	
 	listings, nextPageURL, err := scrapePage(page)
 	if err != nil {
 		log.Fatalf("could not scrape page: %v", err)
@@ -57,7 +59,7 @@ func PerformWebScraping(url string, numPages int) ([]listing.RawListing, error) 
 
 	var newListings []listing.RawListing
 	pages := 1
-	for nextPageURL != "" && pages <= numPages {
+	for nextPageURL != "" && pages < numPages {
 		pages++
 		fmt.Println("Scraping page: ", pages)
 
@@ -84,15 +86,9 @@ func scrapePage(page playwright.Page) ([]listing.RawListing, string, error) {
         return nil, "", fmt.Errorf("could not get entries: %v", err)
     }
 
-    var listings []listing.RawListing
-    for _, entry := range entries {
-        listings = append(listings, getListing(entry))
-    }
-
     var sanitizedListings []listing.RawListing
-    for _, listing := range listings {
-        sanitizedListings = append(sanitizedListings, sanitize(listing))
-        // fmt.Println(listing.Print())
+    for _, entry := range entries {
+        sanitizedListings = append(sanitizedListings, getListing(entry))
     }
 
 	// Find the "Next Page" link
@@ -111,42 +107,42 @@ func scrapePage(page playwright.Page) ([]listing.RawListing, string, error) {
 func getListing(entry playwright.Locator) listing.RawListing {
 	title, err := entry.Locator("div.bsitem-title > a").TextContent()
 	if err != nil {
-		fmt.Printf("could not get title: %v\n", err)
+		fmt.Println("\tcould not get title")
 	}
 
 	condition, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Condition")]]`).InnerText(playwright.LocatorInnerTextOptions{Timeout: playwright.Float(1000)})
 	if err != nil {
-		fmt.Printf("could not get condition: %v\n", err)
+		fmt.Println("\tcould not get condition")
 	}
 
 	frameSize, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Frame Size")]]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
 	if err != nil {
-		fmt.Printf("could not get frame size: %v\n", err)
+		fmt.Println("\tcould not get frame size")
 	}
 
 	wheelSize, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Wheel Size")]]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
 	if err != nil {
-		fmt.Printf("could not get wheel size: %v\n", err)
+		fmt.Println("\tcould not get wheel size")
 	}
 
 	frontTravel, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Front Travel")]]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
 	if err != nil {
-		fmt.Printf("could not get front travel: %v\n", err)
+		fmt.Println("\tcould not get front travel")
 	}
 
 	rearTravel, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Rear Travel")]]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
 	if err != nil {
-		fmt.Printf("could not get rear travel: %v\n", err)
+		fmt.Println("\tcould not get rear travel")
 	}
 
 	material, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Material")]]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
 	if err != nil {
-		fmt.Printf("could not get material: %v\n", err)
+		fmt.Println("\tcould not get material")
 	}
 
 	price, err := entry.Locator("td.bsitem-price > b").TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
 	if err != nil {
-		fmt.Printf("could not get price: %v\n", err)
+		fmt.Println("\tcould not get price")
 	}
 
 	l := listing.RawListing{
