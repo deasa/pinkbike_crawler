@@ -23,8 +23,8 @@ type ExchangeRateResponse struct {
 
 func main() {
 	fileMode := flag.Bool("fileMode", false, "Set to true to read listings from a file instead of web scraping")
-    filePath := flag.String("filePath", "", "The path to the file to read listings from when in file mode")
-    exportToGoogleSheets := flag.Bool("exportToGoogleSheets", false, "Set to true to export listings to Google Sheets")
+	filePath := flag.String("filePath", "", "The path to the file to read listings from when in file mode")
+	exportToGoogleSheets := flag.Bool("exportToGoogleSheets", false, "Set to true to export listings to Google Sheets")
 	exportToFile := flag.Bool("exportToFile", false, "Set to true to write listings to a file")
 	flag.Parse()
 
@@ -33,20 +33,19 @@ func main() {
 		log.Fatalf("could not get exchange rate: %v", err)
 	}
 	fmt.Printf("CAD to USD exchange rate: %f\n", exchangeRate)
-	
 
 	var listings []listing.RawListing
-    if *fileMode {
-        listings, err = exporter.ReadListingsFromFile(*filePath)
-        if err != nil {
-            log.Fatalf("could not read listings from file: %v", err)
-        }
-    } else {
+	if *fileMode {
+		listings, err = scraper.ReadListingsFromFile(*filePath)
+		if err != nil {
+			log.Fatalf("could not read listings from file: %v", err)
+		}
+	} else {
 		listings, err = scraper.PerformWebScraping(urlBase, 700)
 		if err != nil {
 			log.Fatalf("could not perform web scraping: %v", err)
 		}
-    }
+	}
 
 	refinedListings := make([]listing.Listing, 0, len(listings))
 	for _, listing := range listings {
@@ -54,7 +53,7 @@ func main() {
 	}
 
 	if *exportToFile {
-		err = exporter.WriteListingsToFile(refinedListings, "listingsCache.csv")
+		err = exporter.WriteListingsToFile(refinedListings, "goodListingsCache.csv", "suspectListingsCache.csv")
 		if err != nil {
 			log.Fatalf("could not write listings to file: %v", err)
 		}
@@ -89,7 +88,6 @@ func getCADtoUSDExchangeRate() (float64, error) {
 	return data.Rates["USD"], nil
 }
 
-// todo add a mode that will skip the scraping and read from a file
 // todo scrape trail bike data
 
 // todo research training a machine learning model on this data to predict the price of a bike

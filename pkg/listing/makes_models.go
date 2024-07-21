@@ -157,7 +157,7 @@ var bikeModels = map[string][]BikeModel{
 		{"Hook", Hardtail},
 		{"Yowie", CrossCountry},
 	},
-	"Evil Bike Co.": {
+	"Evil": {
 		{"Insurgent", Enduro},
 		{"Offering", Trail},
 		{"Following", Trail},

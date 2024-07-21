@@ -1,14 +1,48 @@
 package scraper
 
 import (
+	"encoding/csv"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/playwright-community/playwright-go"
 
 	"pinkbike-scraper/pkg/listing"
 )
+
+func ReadListingsFromFile(filePath string) ([]listing.RawListing, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("could not open file: %v", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("could not read file: %v", err)
+	}
+
+	listings := make([]listing.RawListing, 0, len(records))
+	for _, record := range records {
+		l := listing.RawListing{
+			Title:         record[0],
+			Price:         record[1],
+			Condition:     record[2],
+			FrameSize:     record[3],
+			WheelSize:     record[4],
+			FrontTravel:   record[5],
+			RearTravel:    record[6],
+			FrameMaterial: record[7],
+		}
+
+		listings = append(listings, l)
+	}
+
+	return listings, nil
+}
 
 func PerformWebScraping(url string, numPages int) ([]listing.RawListing, error) {
 	err := playwright.Install()
@@ -46,12 +80,12 @@ func PerformWebScraping(url string, numPages int) ([]listing.RawListing, error) 
 		log.Fatalf("could not create page: %v", err)
 	}
 
-	if _, err = page.Goto(url+"?category=2"); err != nil {
+	if _, err = page.Goto(url + "?category=2"); err != nil {
 		log.Fatalf("could not goto: %v", err)
 	}
-	
+
 	fmt.Println("Scraping page: 1")
-	
+
 	listings, nextPageURL, err := scrapePage(page)
 	if err != nil {
 		log.Fatalf("could not scrape page: %v", err)
@@ -63,7 +97,7 @@ func PerformWebScraping(url string, numPages int) ([]listing.RawListing, error) 
 		pages++
 		fmt.Println("Scraping page: ", pages)
 
-		if _, err = page.Goto(url+nextPageURL); err != nil {
+		if _, err = page.Goto(url + nextPageURL); err != nil {
 			log.Fatalf("could not goto: %v", err)
 		}
 
@@ -81,15 +115,15 @@ func PerformWebScraping(url string, numPages int) ([]listing.RawListing, error) 
 // todo implement an auto-dedupe function that will compare each parsed listing from the page and will not add it to the list if it already exists
 
 func scrapePage(page playwright.Page) ([]listing.RawListing, string, error) {
-    entries, err := page.Locator("tr.bsitem-table").All()
-    if err != nil {
-        return nil, "", fmt.Errorf("could not get entries: %v", err)
-    }
+	entries, err := page.Locator("tr.bsitem-table").All()
+	if err != nil {
+		return nil, "", fmt.Errorf("could not get entries: %v", err)
+	}
 
-    var sanitizedListings []listing.RawListing
-    for _, entry := range entries {
-        sanitizedListings = append(sanitizedListings, getListing(entry))
-    }
+	var sanitizedListings []listing.RawListing
+	for _, entry := range entries {
+		sanitizedListings = append(sanitizedListings, getListing(entry))
+	}
 
 	// Find the "Next Page" link
 	nextPageLink := page.Locator(`xpath=//a[text()='Next Page']`)
@@ -147,7 +181,7 @@ func getListing(entry playwright.Locator) listing.RawListing {
 
 	l := listing.RawListing{
 		Title:         title,
-		Price: 	   	   price,
+		Price:         price,
 		Condition:     condition,
 		FrameSize:     frameSize,
 		WheelSize:     wheelSize,
