@@ -42,7 +42,7 @@ func main() {
             log.Fatalf("could not read listings from file: %v", err)
         }
     } else {
-		listings, err = scraper.PerformWebScraping(urlBase, 20)
+		listings, err = scraper.PerformWebScraping(urlBase, 700)
 		if err != nil {
 			log.Fatalf("could not perform web scraping: %v", err)
 		}
