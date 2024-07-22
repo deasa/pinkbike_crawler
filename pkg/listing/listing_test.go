@@ -2,6 +2,8 @@ package listing
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestExtractManufacturer(t *testing.T) {
@@ -12,7 +14,7 @@ func TestExtractManufacturer(t *testing.T) {
 	}{
 		{"Manufacturer at start", "Specialized Bike Model", "Specialized"},
 		{"Manufacturer in middle", "Bike Specialized Model", "Specialized"},
-		{"No manufacturer", "Bike Model", ""},
+		{"No manufacturer", "Bike Model", "NoManufacturer"},
 	}
 
 	for _, tt := range tests {
@@ -70,7 +72,7 @@ func TestExtractPrice(t *testing.T) {
 		arg  string
 		want string
 	}{
-		{"Price with comma", "1,000 CAD", "1,000"},
+		{"Price with comma", "1,000 CAD", "1000"},
 		{"Price without comma", "1000 CAD", "1000"},
 		{"No price", "CAD", ""},
 	}
@@ -84,15 +86,94 @@ func TestExtractPrice(t *testing.T) {
 	}
 }
 
+func TestConvertPrice(t *testing.T) {
+	tests := []struct {
+		name         string
+		price        string
+		currency     string
+		exchangeRate float64
+		want         string
+	}{
+		{"Price in CAD to CAD", "1000", "CAD", 1.0, "1000"},
+		{"Price in CAD to USD with exchange rate 0.75", "1000", "CAD", 0.75, "750"},
+		{"Price with comma in CAD to USD", "1,000", "CAD", 0.75, "750"},
+		{"Invalid price format", "one thousand", "CAD", 0.75, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := convertPrice(tt.price, tt.currency, tt.exchangeRate)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestPostProcess(t *testing.T) {
-	rawListing := RawListing{
-		Title:         "2022 Santa Cruz Hightower AL",
-		Price:         "2022",
-		Condition:     "New",
-		FrameSize:     "M",
-		WheelSize:     "29",
-		FrontTravel:   "160",
-		RearTravel:    "150",
-		FrameMaterial: "Carbon",
+	tests := []struct {
+		name string
+		arg  RawListing
+		want Listing
+	}{
+		{
+			"Valid listing 1",
+			RawListing{
+				Title:         "2024 Transition Spire AXS T-Type Fox Factory Reserve Wheels",
+				Price:         "$5300 USD",
+				Condition:     "Excellent - Lightly Ridden",
+				FrameSize:     "L",
+				WheelSize:     `29`,
+				FrontTravel:   "170 mm",
+				RearTravel:    "170 mm",
+				FrameMaterial: "Carbon Fiber",
+			},
+			Listing{
+				Title:         "2024 Transition Spire AXS T-Type Fox Factory Reserve Wheels",
+				Price:         "5300",
+				Year:          "2024",
+				Manufacturer:  "Transition",
+				Model:         "Spire",
+				Currency:      "USD",
+				Condition:     "Excellent - Lightly Ridden",
+				FrameSize:     "L",
+				WheelSize:     "29",
+				FrontTravel:   "170 mm",
+				RearTravel:    "170 mm",
+				FrameMaterial: "Carbon Fiber",
+			},
+		},
+		{
+			"Valid listing 2",
+			RawListing{
+				Title:         "2018 Commencal Meta AM 4.2 World Cup Edition",
+				Price:         "$2550 CAD",
+				Condition:     "Good - Used, Mechanically Sound",
+				FrameSize:     "M",
+				WheelSize:     `27.5 / 650B`,
+				FrontTravel:   "170 mm",
+				RearTravel:    "160 mm",
+				FrameMaterial: "Aluminum",
+			},
+			Listing{
+				Title:         "2018 Commencal Meta AM 4.2 World Cup Edition",
+				Price:         "2550",
+				Year:          "2018",
+				Manufacturer:  "Commencal",
+				Model:         "Meta AM",
+				Currency:      "CAD",
+				Condition:     "Good - Used, Mechanically Sound",
+				FrameSize:     "M",
+				WheelSize:     "27.5 / 650B",
+				FrontTravel:   "170 mm",
+				RearTravel:    "160 mm",
+				FrameMaterial: "Aluminum",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.arg.PostProcess(1.0)
+			assert.Equal(t, tt.want, got)
+		})
 	}
 }

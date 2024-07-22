@@ -26,6 +26,7 @@ func main() {
 	filePath := flag.String("filePath", "", "The path to the file to read listings from when in file mode")
 	exportToGoogleSheets := flag.Bool("exportToGoogleSheets", false, "Set to true to export listings to Google Sheets")
 	exportToFile := flag.Bool("exportToFile", false, "Set to true to write listings to a file")
+	numPages := flag.Int("numPages", 5, "The number of pages to scrape")
 	flag.Parse()
 
 	exchangeRate, err := getCADtoUSDExchangeRate()
@@ -34,22 +35,20 @@ func main() {
 	}
 	fmt.Printf("CAD to USD exchange rate: %f\n", exchangeRate)
 
-	var listings []listing.RawListing
+	var refinedListings []listing.Listing
 	if *fileMode {
-		listings, err = scraper.ReadListingsFromFile(*filePath)
+		refinedListings, err = scraper.ReadListingsFromFile(*filePath)
 		if err != nil {
 			log.Fatalf("could not read listings from file: %v", err)
 		}
 	} else {
-		listings, err = scraper.PerformWebScraping(urlBase, 700)
+		rawListings, err := scraper.PerformWebScraping(urlBase, *numPages)
 		if err != nil {
 			log.Fatalf("could not perform web scraping: %v", err)
 		}
-	}
-
-	refinedListings := make([]listing.Listing, 0, len(listings))
-	for _, listing := range listings {
-		refinedListings = append(refinedListings, listing.PostProcess(exchangeRate))
+		for _, l := range rawListings {
+			refinedListings = append(refinedListings, l.PostProcess(exchangeRate))
+		}
 	}
 
 	if *exportToFile {

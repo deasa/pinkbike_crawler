@@ -12,7 +12,7 @@ import (
 	"pinkbike-scraper/pkg/listing"
 )
 
-func ReadListingsFromFile(filePath string) ([]listing.RawListing, error) {
+func ReadListingsFromFile(filePath string) ([]listing.Listing, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("could not open file: %v", err)
@@ -25,17 +25,19 @@ func ReadListingsFromFile(filePath string) ([]listing.RawListing, error) {
 		return nil, fmt.Errorf("could not read file: %v", err)
 	}
 
-	listings := make([]listing.RawListing, 0, len(records))
+	listings := make([]listing.Listing, 0, len(records))
 	for _, record := range records {
-		l := listing.RawListing{
+		l := listing.Listing{
 			Title:         record[0],
-			Price:         record[1],
-			Condition:     record[2],
-			FrameSize:     record[3],
-			WheelSize:     record[4],
-			FrontTravel:   record[5],
-			RearTravel:    record[6],
-			FrameMaterial: record[7],
+			Year:          record[1],
+			Price:         record[2],
+			Currency:      record[3],
+			Condition:     record[4],
+			FrameSize:     record[5],
+			WheelSize:     record[6],
+			FrontTravel:   record[7],
+			RearTravel:    record[8],
+			FrameMaterial: record[9],
 		}
 
 		listings = append(listings, l)
@@ -126,7 +128,7 @@ func scrapePage(page playwright.Page) ([]listing.RawListing, string, error) {
 	}
 
 	// Find the "Next Page" link
-	nextPageLink := page.Locator(`xpath=//a[text()='Next Page']`)
+	nextPageLink := page.Locator(`xpath=//a[text()='Next']`)
 
 	// Get the URL of the "Next Page" link
 	nextPageURL, err := nextPageLink.GetAttribute("href")
@@ -142,6 +144,11 @@ func getListing(entry playwright.Locator) listing.RawListing {
 	title, err := entry.Locator("div.bsitem-title > a").TextContent()
 	if err != nil {
 		fmt.Println("\tcould not get title")
+	}
+
+	url, err := entry.Locator("div.bsitem-title > a").GetAttribute("href")
+	if err != nil {
+		fmt.Println("\tcould not get url")
 	}
 
 	condition, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Condition")]]`).InnerText(playwright.LocatorInnerTextOptions{Timeout: playwright.Float(1000)})
@@ -188,6 +195,7 @@ func getListing(entry playwright.Locator) listing.RawListing {
 		FrontTravel:   frontTravel,
 		RearTravel:    rearTravel,
 		FrameMaterial: material,
+		URL:           url,
 	}
 
 	return sanitize(l)
@@ -205,6 +213,7 @@ func sanitize(l listing.RawListing) listing.RawListing {
 	newL.FrontTravel = parseItemDetail(l.FrontTravel, "Front Travel :")
 	newL.RearTravel = parseItemDetail(l.RearTravel, "Rear Travel :")
 	newL.FrameMaterial = parseItemDetail(l.FrameMaterial, "Material :")
+	newL.URL = strings.TrimSpace(l.URL)
 
 	return newL
 }
@@ -215,5 +224,8 @@ func parseItemDetail(detail, label string) string {
 		return ""
 	}
 
-	return strings.TrimSpace(split[1])
+	s := strings.TrimSpace(split[1])
+	s = strings.ReplaceAll(s, `"`, "")
+
+	return s
 }

@@ -9,16 +9,16 @@ import (
 )
 
 type RawListing struct {
-	Title, Price, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel string
+	Title, Price, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, URL string
 }
 
 type Listing struct {
-	Title, Year, Manufacturer, Model, Price, Currency, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, NeedsReview string
+	Title, Year, Manufacturer, Model, Price, Currency, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, NeedsReview, URL string
 }
 
 func (l RawListing) Print() string {
-	return fmt.Sprintf("Title: %s\nPrice: %s\n\tCondition: %s\n\tFrame Size: %s\n\tWheel Size: %s\n\tFront Travel: %s\n\tRear Travel: %s\n\tFrame Material: %s\n\t\n",
-		l.Title, l.Price, l.Condition, l.FrameSize, l.WheelSize, l.FrontTravel, l.RearTravel, l.FrameMaterial)
+	return fmt.Sprintf("Title: %s\nPrice: %s\n\tCondition: %s\n\tFrame Size: %s\n\tWheel Size: %s\n\tFront Travel: %s\n\tRear Travel: %s\n\tFrame Material: %s\n\tURL: %s\n\t\n",
+		l.Title, l.Price, l.Condition, l.FrameSize, l.WheelSize, l.FrontTravel, l.RearTravel, l.FrameMaterial, l.URL)
 }
 
 func (l RawListing) PostProcess(exchangeRate float64) Listing {
@@ -35,6 +35,7 @@ func (l RawListing) PostProcess(exchangeRate float64) Listing {
 		FrontTravel:   l.FrontTravel, //todo: remove mm
 		RearTravel:    l.RearTravel,  //todo: remove mm
 		FrameMaterial: l.FrameMaterial,
+		URL:           l.URL,
 	}
 
 	if reason := validateListing(newL); reason != "" {
@@ -54,7 +55,7 @@ func validateListing(l Listing) string {
 	if l.Manufacturer == "NoManufacturer" || l.Manufacturer == "" {
 		return "manufacturer"
 	}
-	if l.Model == "NoModelFound" || l.Model == "" {
+	if l.Model == "NoModelFound" || strings.Contains(l.Model, "Electric") || l.Model == "" {
 		return "model"
 	}
 	if l.Currency == "" {
@@ -111,7 +112,8 @@ func convertPrice(price, currency string, exchangeRate float64) string {
 
 func extractPrice(price string) string {
 	reg := regexp.MustCompile(`[0-9,]+`)
-	return reg.FindString(price)
+	res := reg.FindString(price)
+	return strings.ReplaceAll(res, ",", "")
 }
 
 func extractManufacturer(title string) string {
@@ -124,11 +126,15 @@ func extractManufacturer(title string) string {
 }
 
 func extractModel(title string) string {
-	for _, models := range bikeModels {
-		for _, model := range models {
-			if strings.Contains(strings.ToLower(title), strings.ToLower(model.Name)) {
-				return model.Name
+	manufacturer := extractManufacturer(title)
+	bikes := bikeModels[manufacturer]
+
+	for _, model := range bikes {
+		if strings.Contains(strings.ToLower(title), strings.ToLower(model.Name)) {
+			if model.Purpose == Electric {
+				return model.Name + " Electric"
 			}
+			return model.Name
 		}
 	}
 	return "NoModelFound"
