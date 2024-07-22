@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	csvHeaders = []string{"Title", "Year", "Manufacturer", "Model", "USD Price", "Original Currency", "Condition", "Frame Size", "Wheel Size", "Front Travel", "Rear Travel", "Material"}
+	csvHeaders = []string{"Title", "Year", "Manufacturer", "Model", "USD Price", "Original Currency", "Condition", "Frame Size", "Wheel Size", "Front Travel", "Rear Travel", "Material", "Reason for Review"}
 )
 
 func WriteListingsToFile(listings []listing.Listing, filenameForGoodListings, filenameForSuspectListings string) error {
@@ -52,15 +52,15 @@ func WriteListingsToFile(listings []listing.Listing, filenameForGoodListings, fi
 	}
 
 	for _, listing := range listings {
-		if listing.NeedsReview {
-			err = suspectWriter.Write([]string{listing.Title, listing.Year, listing.Manufacturer, listing.Model, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial})
+		if listing.NeedsReview != "" {
+			err = suspectWriter.Write([]string{listing.Title, listing.Year, listing.Manufacturer, listing.Model, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial, listing.NeedsReview})
 			if err != nil {
 				return err
 			}
 			continue
 		}
 
-		err = goodWriter.Write([]string{listing.Title, listing.Year, listing.Manufacturer, listing.Model, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial})
+		err = goodWriter.Write([]string{listing.Title, listing.Year, listing.Manufacturer, listing.Model, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial, listing.NeedsReview})
 		if err != nil {
 			return err
 		}

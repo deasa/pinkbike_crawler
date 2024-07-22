@@ -13,8 +13,7 @@ type RawListing struct {
 }
 
 type Listing struct {
-	Title, Year, Manufacturer, Model, Price, Currency, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel string
-	NeedsReview                                                                                                                bool
+	Title, Year, Manufacturer, Model, Price, Currency, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, NeedsReview string
 }
 
 func (l RawListing) Print() string {
@@ -38,50 +37,49 @@ func (l RawListing) PostProcess(exchangeRate float64) Listing {
 		FrameMaterial: l.FrameMaterial,
 	}
 
-	if !validateListing(newL) {
-		newL.NeedsReview = true
+	if reason := validateListing(newL); reason != "" {
+		newL.NeedsReview = reason
 	}
 
 	return newL
 }
 
-func validateListing(l Listing) bool {
+func validateListing(l Listing) string {
 	if l.Price == "" || l.Price == "0" {
-		return false
+		return "price"
 	}
 	if l.Year == "" {
-		return false
+		return "year"
 	}
 	if l.Manufacturer == "NoManufacturer" || l.Manufacturer == "" {
-		return false
+		return "manufacturer"
 	}
 	if l.Model == "NoModelFound" || l.Model == "" {
-		return false
+		return "model"
 	}
 	if l.Currency == "" {
-		return false
+		return "currency"
 	}
 	if l.Condition == "" {
-		return false
+		return "condition"
 	}
 	if l.FrameSize == "" {
-		return false
+		return "frame size"
 	}
 	if l.WheelSize == "" {
-		return false
+		return "wheel size"
 	}
 	if l.FrontTravel == "" {
-		return false
+		return "front travel"
 	}
 	if l.RearTravel == "" {
-		return false
+		return "rear travel"
 	}
 	if l.FrameMaterial == "" {
-		return false
+		return "frame material"
 	}
 
-	return true
-
+	return ""
 }
 
 func extractYear(title string) string {
