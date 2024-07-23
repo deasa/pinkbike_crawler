@@ -82,7 +82,7 @@ func PerformWebScraping(url string, numPages int) ([]listing.RawListing, error) 
 		log.Fatalf("could not create page: %v", err)
 	}
 
-	if _, err = page.Goto(url + "?category=2"); err != nil {
+	if _, err = page.Goto(url + "?category=102"); err != nil {
 		log.Fatalf("could not goto: %v", err)
 	}
 

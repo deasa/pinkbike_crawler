@@ -523,6 +523,7 @@ var bikeModels = map[string][]BikeModel{
 		{"Mega tower", Enduro},
 		{"Hightower", AllMountain},
 		{"High tower", AllMountain},
+		{"Heckler", Trail},
 		{"Nomad", Enduro},
 		{"Tallboy", Trail},
 		{"Blur", CrossCountry},
@@ -630,6 +631,8 @@ var bikeModels = map[string][]BikeModel{
 		{"605", Hardtail},
 	},
 	"Yeti": {
+		{"SB120", Trail},
+		{"SB 120", Trail},
 		{"SB165", Enduro},
 		{"SB160", Enduro},
 		{"SB150", Enduro},
