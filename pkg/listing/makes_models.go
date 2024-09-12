@@ -553,7 +553,9 @@ var bikeModels = map[string][]BikeModel{
 	},
 	"Specialized": {
 		{"Demo", Downhill},
-		{"Stumpjumper EVO", Enduro},
+		{"Stumpjumper", Trail},
+		{"Stumpjumper Pro", Trail},
+		{"Stumpjumper EVO", Trail},
 		{"Enduro", AllMountain},
 		{"Status", Trail},
 		{"Turbo Levo", Electric},
