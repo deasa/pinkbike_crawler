@@ -26,8 +26,11 @@ func main() {
 	filePath := flag.String("filePath", "", "The path to the file to read listings from when in file mode")
 	exportToGoogleSheets := flag.Bool("exportToGoogleSheets", false, "Set to true to export listings to Google Sheets")
 	exportToFile := flag.Bool("exportToFile", false, "Set to true to write listings to a file")
+	bikeType := flag.String("bikeType", "enduro", "The type of bike to scrape listings for")
 	numPages := flag.Int("numPages", 5, "The number of pages to scrape")
 	flag.Parse()
+
+	bikeTypeVal := getBikeType(*bikeType)
 
 	exchangeRate, err := getCADtoUSDExchangeRate()
 	if err != nil {
@@ -42,7 +45,7 @@ func main() {
 			log.Fatalf("could not read listings from file: %v", err)
 		}
 	} else {
-		rawListings, err := scraper.PerformWebScraping(urlBase, *numPages)
+		rawListings, err := scraper.PerformWebScraping(urlBase, *numPages, bikeTypeVal)
 		if err != nil {
 			log.Fatalf("could not perform web scraping: %v", err)
 		}
@@ -64,6 +67,23 @@ func main() {
 			log.Fatalf("could not export listings to Google Sheets: %v", err)
 		}
 	}
+}
+
+func getBikeType(bikeType string) scraper.BikeType {
+	var bikeTypeVal scraper.BikeType
+	switch bikeType {
+	case "enduro":
+		bikeTypeVal = scraper.Enduro
+	case "trail":
+		bikeTypeVal = scraper.Trail
+	case "xc":
+		bikeTypeVal = scraper.XC
+	case "dh":
+		bikeTypeVal = scraper.DH
+	default:
+		log.Fatalf("invalid bike type: %s", bikeType)
+	}
+	return bikeTypeVal
 }
 
 func getCADtoUSDExchangeRate() (float64, error) {

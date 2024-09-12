@@ -12,6 +12,16 @@ import (
 	"pinkbike-scraper/pkg/listing"
 )
 
+var (
+	Enduro BikeType = "enduro"
+	Trail  BikeType = "trail"
+	XC     BikeType = "xc"
+	DH     BikeType = "dh"
+)
+
+// biketype enum
+type BikeType string
+
 func ReadListingsFromFile(filePath string) ([]listing.Listing, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -46,7 +56,7 @@ func ReadListingsFromFile(filePath string) ([]listing.Listing, error) {
 	return listings, nil
 }
 
-func PerformWebScraping(url string, numPages int) ([]listing.RawListing, error) {
+func PerformWebScraping(url string, numPages int, bikeType BikeType) ([]listing.RawListing, error) {
 	err := playwright.Install()
 	if err != nil {
 		log.Fatalf("could not install playwright: %v", err)
@@ -82,7 +92,7 @@ func PerformWebScraping(url string, numPages int) ([]listing.RawListing, error) 
 		log.Fatalf("could not create page: %v", err)
 	}
 
-	if _, err = page.Goto(url + "?category=102"); err != nil {
+	if _, err = page.Goto(getListingsUrl(url, bikeType)); err != nil {
 		log.Fatalf("could not goto: %v", err)
 	}
 
@@ -112,6 +122,22 @@ func PerformWebScraping(url string, numPages int) ([]listing.RawListing, error) 
 	}
 
 	return listings, nil
+}
+
+func getListingsUrl(urlBase string, bikeType BikeType) string {
+	switch bikeType {
+	case Enduro:
+		return urlBase + "/?category=2"
+	case Trail:
+		return urlBase + "/?category=102"
+	case XC:
+		return urlBase + "/?category=75"
+	case DH:
+		return urlBase + "/?category=1"
+	default:
+		log.Fatalf("invalid bike type: %s", bikeType)
+		return ""
+	}
 }
 
 // todo implement an auto-dedupe function that will compare each parsed listing from the page and will not add it to the list if it already exists
