@@ -9,10 +9,12 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}",
+            "program": "${workspaceFolder}",
             "args": [
                 "-exportToFile=true",
                 "-exportToGoogleSheets=true",
+                "-bikeType=xc",
+                "-numPages=500"
             ]
         },
         {
@@ -20,10 +22,12 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}",
+            "program": "${workspaceFolder}",
             "args": [
                 "-exportToFile=true",
                 "-exportToGoogleSheets=false",
+                "-bikeType=enduro",
+                // "-numPages=3"
             ]
         },
         {
@@ -35,6 +39,7 @@
             "args": [
                 "-exportToFile=false",
                 "-exportToGoogleSheets=true",
+                "-bikeType=enduro"
             ]
         },
         {
@@ -48,6 +53,7 @@
                 "-exportToGoogleSheets=false",
                 "-filePath=fullRunOfListings.csv",
                 "-fileMode=true",
+                "-bikeType=enduro"
             ]
         },
         {
@@ -61,6 +67,7 @@
                 "-exportToGoogleSheets=true",
                 "-filePath=listingsCache.csv",
                 "-fileMode=false",
+                "-bikeType=enduro"
             ]
         },
         {
@@ -72,6 +79,7 @@
             "args": [
                 "-exportToFile=false",
                 "-exportToGoogleSheets=false",
+                "-bikeType=enduro"
             ]
         }
     ]

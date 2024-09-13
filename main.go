@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"pinkbike-scraper/pkg/exporter"
 	"pinkbike-scraper/pkg/listing"
@@ -54,8 +55,10 @@ func main() {
 		}
 	}
 
+	fileName := getFileName(bikeTypeVal)
+
 	if *exportToFile {
-		err = exporter.WriteListingsToFile(refinedListings, "goodListingsCache.csv", "suspectListingsCache.csv")
+		err = exporter.WriteListingsToFile(refinedListings, "runs/"+fileName, "runs/suspect_"+fileName)
 		if err != nil {
 			log.Fatalf("could not write listings to file: %v", err)
 		}
@@ -67,6 +70,12 @@ func main() {
 			log.Fatalf("could not export listings to Google Sheets: %v", err)
 		}
 	}
+}
+
+func getFileName(bikeType scraper.BikeType) string {
+	bt := string(bikeType)
+	fileName := fmt.Sprintf("%sListings%s.csv", bt, time.Now().Format("2006-01-02"))
+	return fileName
 }
 
 func getBikeType(bikeType string) scraper.BikeType {

@@ -269,6 +269,10 @@ var bikeModels = map[string][]BikeModel{
 	},
 	"Ibis": {
 		{"Ripmo", Trail},
+		{"Ripmo V2", Trail},
+		{"Ripley", Trail},
+		{"Ripley V4", Trail},
+		{"Ripmo V2S", Trail},
 		{"Ripmo AF", Trail},
 		{"Mojo", Trail},
 		{"Mojo HD5", Enduro},
