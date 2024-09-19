@@ -116,7 +116,5 @@ func getCADtoUSDExchangeRate() (float64, error) {
 	return data.Rates["USD"], nil
 }
 
-// todo scrape trail bike data
 // todo implement "a.k.a" for models and manufacturers so that they all get normalized to a single name
-
-// todo research training a machine learning model on this data to predict the price of a bike
+// priority is on the manufacturer though because we probably wont use the model name in the prediction

@@ -77,16 +77,7 @@ func ExportToGoogleSheets(listings []listing.Listing) error {
 		log.Fatalf("Unable to retrieve Sheets client: %v", err)
 	}
 
-	// createSheetAndShare(ctx, srv, "Pinkbike Crawler Data", "bgeorgeashton@gmail.com", "pinkbike-exporter-8bc8e681ffa1.json")
-	// sheetName := fmt.Sprintf("%sExport", time.Now().Format("2006-01-02 15:04"))
-
-	interfaceSlice := make([]interface{}, len(csvHeaders))
-	for i, v := range csvHeaders {
-		interfaceSlice[i] = v
-	}
-
 	var values [][]interface{}
-	values = append(values, interfaceSlice)
 	for _, listing := range listings {
 		values = append(values, []interface{}{listing.Title, listing.Year, listing.Manufacturer, listing.Model, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial})
 	}
@@ -96,12 +87,31 @@ func ExportToGoogleSheets(listings []listing.Listing) error {
 		Values: values,
 	}
 
-	// Write the data to the sheet
-	writeRange := "Sheet1" + "!A1:ZZ"
-
-	_, err = srv.Spreadsheets.Values.Update(spreadsheetID, writeRange, valueRange).ValueInputOption("RAW").Do()
+	// Append the data to the sheet
+	appendRange := "Sheet1"
+	_, err = srv.Spreadsheets.Values.Append(spreadsheetID, appendRange, valueRange).ValueInputOption("USER_ENTERED").InsertDataOption("INSERT_ROWS").Do()
 	if err != nil {
-		return fmt.Errorf("Unable to write data to sheet: %v", err)
+		return fmt.Errorf("Unable to append data to sheet: %v", err)
+	}
+
+	// Remove duplicates from the sheet
+	deleteDuplicatesRequest := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			{
+				DeleteDuplicates: &sheets.DeleteDuplicatesRequest{
+					Range: &sheets.GridRange{
+						SheetId:          0, // Assuming you're working with the first sheet
+						StartRowIndex:    0,
+						StartColumnIndex: 0,
+					},
+				},
+			},
+		},
+	}
+
+	_, err = srv.Spreadsheets.BatchUpdate(spreadsheetID, deleteDuplicatesRequest).Do()
+	if err != nil {
+		return fmt.Errorf("Unable to remove duplicates from sheet: %v", err)
 	}
 
 	return nil

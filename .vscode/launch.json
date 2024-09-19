@@ -35,11 +35,12 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}",
+            "program": "${workspaceFolder}",
             "args": [
                 "-exportToFile=false",
                 "-exportToGoogleSheets=true",
-                "-bikeType=enduro"
+                "-bikeType=enduro",
+                "-numPages=500"
             ]
         },
         {
@@ -47,7 +48,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}",
+            "program": "${workspaceFolder}",
             "args": [
                 "-exportToFile=true",
                 "-exportToGoogleSheets=false",
@@ -61,7 +62,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}",
+            "program": "${workspaceFolder}",
             "args": [
                 "-exportToFile=true",
                 "-exportToGoogleSheets=true",
@@ -75,7 +76,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}",
+            "program": "${workspaceFolder}",
             "args": [
                 "-exportToFile=false",
                 "-exportToGoogleSheets=false",
