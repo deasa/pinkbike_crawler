@@ -105,6 +105,8 @@ func ExportToGoogleSheets(listings []listing.Listing) error {
 	return nil
 }
 
+// SendDeDuplicateRequestToGoogleSheets removes duplicate rows from the Google Sheets document
+// NOTE: Only the first match is kept! This means that when a listing's price changes, the old listing and old price will be kept.
 func SendDeDuplicateRequestToGoogleSheets(srv *sheets.Service) error {
 	// Remove duplicates from the sheet, considering only specific columns
 	deleteDuplicatesRequest := &sheets.BatchUpdateSpreadsheetRequest{
@@ -112,7 +114,7 @@ func SendDeDuplicateRequestToGoogleSheets(srv *sheets.Service) error {
 			{
 				DeleteDuplicates: &sheets.DeleteDuplicatesRequest{
 					Range: &sheets.GridRange{
-						SheetId:          0, // Assuming you're working with the first sheet
+						SheetId:          0,
 						StartRowIndex:    0,
 						StartColumnIndex: 0,
 						EndColumnIndex:   12, // Include columns 0 to 11 (Title to FrameMaterial)
@@ -179,7 +181,7 @@ func ExportToListingsDB(listings []listing.Listing) error {
 		return fmt.Errorf("failed to create table: %v", err)
 	}
 
-	// Insert listings into the database, ignoring duplicates
+	// Insert listings into the database, replacing duplicates
 	insertSQL := `
     REPLACE INTO listings (
         title, year, manufacturer, model, price, currency, condition, 
