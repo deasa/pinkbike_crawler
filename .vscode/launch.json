@@ -13,7 +13,7 @@
             "args": [
                 "-exportToFile=true",
                 "-exportToGoogleSheets=true",
-                "-bikeType=xc",
+                "-bikeType=enduro",
                 "-numPages=500"
             ]
         },

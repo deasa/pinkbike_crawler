@@ -54,15 +54,16 @@ func WriteListingsToFile(listings []listing.Listing, filenameForGoodListings, fi
 	}
 
 	for _, l := range listings {
+		row := []string{l.Title, l.Year, l.Manufacturer, l.Model, l.Price, l.Currency, l.Condition, l.FrameSize, l.WheelSize, l.FrontTravel, l.RearTravel, l.FrameMaterial, l.NeedsReview, l.URL}
 		if l.NeedsReview != "" {
-			err = suspectWriter.Write([]string{l.Title, l.Year, l.Manufacturer, l.Model, l.Price, l.Currency, l.Condition, l.FrameSize, l.WheelSize, l.FrontTravel, l.RearTravel, l.FrameMaterial, l.NeedsReview, l.URL})
+			err = suspectWriter.Write(row)
 			if err != nil {
 				return err
 			}
 			continue
 		}
 
-		err = goodWriter.Write([]string{l.Title, l.Year, l.Manufacturer, l.Model, l.Price, l.Currency, l.Condition, l.FrameSize, l.WheelSize, l.FrontTravel, l.RearTravel, l.FrameMaterial, l.NeedsReview, l.URL})
+		err = goodWriter.Write(row)
 		if err != nil {
 			return err
 		}
@@ -80,8 +81,8 @@ func ExportToGoogleSheets(listings []listing.Listing) error {
 	}
 
 	var values [][]interface{}
-	for _, listing := range listings {
-		values = append(values, []interface{}{listing.Title, listing.Year, listing.Manufacturer, listing.Model, listing.Price, listing.Currency, listing.Condition, listing.FrameSize, listing.WheelSize, listing.FrontTravel, listing.RearTravel, listing.FrameMaterial})
+	for _, l := range listings {
+		values = append(values, []interface{}{l.Title, l.Year, l.Manufacturer, l.Model, l.Price, l.URL, l.Condition, l.FrameSize, l.WheelSize, l.FrontTravel, l.RearTravel, l.FrameMaterial, l.NeedsReview, l.Currency})
 	}
 
 	// Create the value range object
@@ -96,7 +97,16 @@ func ExportToGoogleSheets(listings []listing.Listing) error {
 		return fmt.Errorf("Unable to append data to sheet: %v", err)
 	}
 
-	// Remove duplicates from the sheet
+	err = SendDeDuplicateRequestToGoogleSheets(srv)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func SendDeDuplicateRequestToGoogleSheets(srv *sheets.Service) error {
+	// Remove duplicates from the sheet, considering only specific columns
 	deleteDuplicatesRequest := &sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{
 			{
@@ -105,13 +115,28 @@ func ExportToGoogleSheets(listings []listing.Listing) error {
 						SheetId:          0, // Assuming you're working with the first sheet
 						StartRowIndex:    0,
 						StartColumnIndex: 0,
+						EndColumnIndex:   12, // Include columns 0 to 11 (Title to FrameMaterial)
+					},
+					ComparisonColumns: []*sheets.DimensionRange{
+						{
+							SheetId:    0,
+							Dimension:  "COLUMNS",
+							StartIndex: 0, // Title
+							EndIndex:   3, // Model
+						},
+						{
+							SheetId:    0,
+							Dimension:  "COLUMNS",
+							StartIndex: 6,  // Condition
+							EndIndex:   11, // FrameMaterial
+						},
 					},
 				},
 			},
 		},
 	}
 
-	_, err = srv.Spreadsheets.BatchUpdate(spreadsheetID, deleteDuplicatesRequest).Do()
+	_, err := srv.Spreadsheets.BatchUpdate(spreadsheetID, deleteDuplicatesRequest).Do()
 	if err != nil {
 		return fmt.Errorf("Unable to remove duplicates from sheet: %v", err)
 	}
@@ -145,8 +170,8 @@ func ExportToListingsDB(listings []listing.Listing) error {
         frame_material TEXT,
         needs_review TEXT,
         url TEXT,
-        UNIQUE(title, year, manufacturer, model, price, currency, condition, 
-               frame_size, wheel_size, front_travel, rear_travel, frame_material, url)
+        UNIQUE(title, year, manufacturer, model, currency, condition, 
+               frame_size, wheel_size, front_travel, rear_travel, frame_material)
     );
     `
 	_, err = db.Exec(createTableSQL)
@@ -156,7 +181,7 @@ func ExportToListingsDB(listings []listing.Listing) error {
 
 	// Insert listings into the database, ignoring duplicates
 	insertSQL := `
-    INSERT OR IGNORE INTO listings (
+    REPLACE INTO listings (
         title, year, manufacturer, model, price, currency, condition, 
         frame_size, wheel_size, front_travel, rear_travel, frame_material,
         needs_review, url

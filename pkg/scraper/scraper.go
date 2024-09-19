@@ -74,7 +74,7 @@ func PerformWebScraping(url string, numPages int, bikeType BikeType) ([]listing.
 	}()
 
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(false),
+		Headless: playwright.Bool(true),
 	})
 
 	defer func() {
