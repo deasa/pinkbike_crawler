@@ -2,11 +2,13 @@ package exporter
 
 import (
 	"context"
+	"database/sql"
 	"encoding/csv"
 	"fmt"
 	"log"
 	"os"
 
+	_ "github.com/mattn/go-sqlite3"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
@@ -112,6 +114,69 @@ func ExportToGoogleSheets(listings []listing.Listing) error {
 	_, err = srv.Spreadsheets.BatchUpdate(spreadsheetID, deleteDuplicatesRequest).Do()
 	if err != nil {
 		return fmt.Errorf("Unable to remove duplicates from sheet: %v", err)
+	}
+
+	return nil
+}
+
+func ExportToListingsDB(listings []listing.Listing) error {
+	// Open or create the SQLite database file
+	db, err := sql.Open("sqlite3", "listings.db")
+	if err != nil {
+		return fmt.Errorf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create the listings table if it doesn't exist, with a unique index on all columns
+	createTableSQL := `
+    CREATE TABLE IF NOT EXISTS listings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        year TEXT,
+        manufacturer TEXT,
+        model TEXT,
+        price TEXT,
+        currency TEXT,
+        condition TEXT,
+        frame_size TEXT,
+        wheel_size TEXT,
+        front_travel TEXT,
+        rear_travel TEXT,
+        frame_material TEXT,
+        needs_review TEXT,
+        url TEXT,
+        UNIQUE(title, year, manufacturer, model, price, currency, condition, 
+               frame_size, wheel_size, front_travel, rear_travel, frame_material, url)
+    );
+    `
+	_, err = db.Exec(createTableSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create table: %v", err)
+	}
+
+	// Insert listings into the database, ignoring duplicates
+	insertSQL := `
+    INSERT OR IGNORE INTO listings (
+        title, year, manufacturer, model, price, currency, condition, 
+        frame_size, wheel_size, front_travel, rear_travel, frame_material,
+        needs_review, url
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+	stmt, err := db.Prepare(insertSQL)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %v", err)
+	}
+	defer stmt.Close()
+
+	for _, l := range listings {
+		_, err = stmt.Exec(
+			l.Title, l.Year, l.Manufacturer, l.Model, l.Price, l.Currency, l.Condition,
+			l.FrameSize, l.WheelSize, l.FrontTravel, l.RearTravel, l.FrameMaterial,
+			l.NeedsReview, l.URL,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert listing: %v", err)
+		}
 	}
 
 	return nil

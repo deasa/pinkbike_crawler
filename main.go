@@ -70,6 +70,11 @@ func main() {
 			log.Fatalf("could not export listings to Google Sheets: %v", err)
 		}
 	}
+
+	err = exporter.ExportToListingsDB(refinedListings)
+	if err != nil {
+		log.Fatalf("could not export listings to database: %v", err)
+	}
 }
 
 func getFileName(bikeType scraper.BikeType) string {

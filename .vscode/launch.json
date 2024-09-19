@@ -80,7 +80,8 @@
             "args": [
                 "-exportToFile=false",
                 "-exportToGoogleSheets=false",
-                "-bikeType=enduro"
+                "-bikeType=enduro",
+                "-numPages=5"
             ]
         }
     ]
