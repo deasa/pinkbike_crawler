@@ -22,8 +22,56 @@ var (
 // biketype enum
 type BikeType string
 
-func ReadListingsFromFile(filePath string) ([]listing.Listing, error) {
-	file, err := os.Open(filePath)
+// Scraper holds configuration for scraping operations
+type Scraper struct {
+	filePath string
+	headless bool
+	pw       *playwright.Playwright
+	browser  playwright.Browser
+}
+
+// NewScraper creates and returns a new Scraper instance
+func NewScraper(filePath string, headless bool) (*Scraper, error) {
+	err := playwright.Install()
+	if err != nil {
+		return nil, fmt.Errorf("could not install playwright: %v", err)
+	}
+
+	pw, err := playwright.Run()
+	if err != nil {
+		return nil, fmt.Errorf("could not start playwright: %v", err)
+	}
+
+	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+		Headless: playwright.Bool(headless),
+	})
+	if err != nil {
+		pw.Stop()
+		return nil, fmt.Errorf("could not launch browser: %v", err)
+	}
+
+	return &Scraper{
+		filePath: filePath,
+		headless: headless,
+		pw:       pw,
+		browser:  browser,
+	}, nil
+}
+
+// Close cleanly shuts down the scraper
+func (s *Scraper) Close() error {
+	if err := s.browser.Close(); err != nil {
+		return fmt.Errorf("could not close browser: %v", err)
+	}
+	if err := s.pw.Stop(); err != nil {
+		return fmt.Errorf("could not stop Playwright: %v", err)
+	}
+	return nil
+}
+
+// ReadListingsFromFile reads listings from the configured file path
+func (s *Scraper) ReadListingsFromFile() ([]listing.Listing, error) {
+	file, err := os.Open(s.filePath)
 	if err != nil {
 		return nil, fmt.Errorf("could not open file: %v", err)
 	}
@@ -56,51 +104,22 @@ func ReadListingsFromFile(filePath string) ([]listing.Listing, error) {
 	return listings, nil
 }
 
-func PerformWebScraping(url string, numPages int, bikeType BikeType) ([]listing.RawListing, error) {
-	err := playwright.Install()
+// PerformWebScraping performs the web scraping operation
+func (s *Scraper) PerformWebScraping(url string, numPages int, bikeType BikeType) ([]listing.RawListing, error) {
+	page, err := s.browser.NewPage()
 	if err != nil {
-		log.Fatalf("could not install playwright: %v", err)
-	}
-
-	pw, err := playwright.Run()
-	if err != nil {
-		log.Fatalf("could not start playwright: %v", err)
-	}
-
-	defer func() {
-		if err = pw.Stop(); err != nil {
-			log.Fatalf("could not stop Playwright: %v", err)
-		}
-	}()
-
-	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(true),
-	})
-
-	defer func() {
-		if err = browser.Close(); err != nil {
-			log.Fatalf("could not close browser: %v", err)
-		}
-	}()
-
-	if err != nil {
-		log.Fatalf("could not launch browser: %v", err)
-	}
-
-	page, err := browser.NewPage()
-	if err != nil {
-		log.Fatalf("could not create page: %v", err)
+		return nil, fmt.Errorf("could not create page: %v", err)
 	}
 
 	if _, err = page.Goto(getListingsUrl(url, bikeType)); err != nil {
-		log.Fatalf("could not goto: %v", err)
+		return nil, fmt.Errorf("could not goto: %v", err)
 	}
 
 	fmt.Println("Scraping page: 1")
 
 	listings, nextPageURL, err := scrapePage(page)
 	if err != nil {
-		log.Fatalf("could not scrape page: %v", err)
+		return nil, fmt.Errorf("could not scrape page: %v", err)
 	}
 
 	var newListings []listing.RawListing
@@ -110,12 +129,12 @@ func PerformWebScraping(url string, numPages int, bikeType BikeType) ([]listing.
 		fmt.Println("Scraping page: ", pages)
 
 		if _, err = page.Goto(url + nextPageURL); err != nil {
-			log.Fatalf("could not goto: %v", err)
+			return nil, fmt.Errorf("could not goto: %v", err)
 		}
 
 		newListings, nextPageURL, err = scrapePage(page)
 		if err != nil {
-			log.Fatalf("could not scrape page: %v", err)
+			return nil, fmt.Errorf("could not scrape page: %v", err)
 		}
 
 		listings = append(listings, newListings...)

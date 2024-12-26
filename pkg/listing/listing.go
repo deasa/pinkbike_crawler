@@ -1,11 +1,14 @@
 package listing
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type RawListing struct {
@@ -13,7 +16,9 @@ type RawListing struct {
 }
 
 type Listing struct {
-	Title, Year, Manufacturer, Model, Price, Currency, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, NeedsReview, URL string
+	Title, Year, Manufacturer, Model, Price, Currency, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, NeedsReview, URL, Hash string
+	FirstSeen, LastSeen                                                                                                                                time.Time
+	Active                                                                                                                                             bool
 }
 
 func (l RawListing) Print() string {
@@ -138,4 +143,22 @@ func extractModel(title string) string {
 		}
 	}
 	return "NoModelFound"
+}
+
+func (l Listing) ComputeHash() string {
+	// Combine fields that would uniquely identify a bike listing
+	uniqueString := strings.Join([]string{
+		strings.ToLower(l.Title),
+		l.Year,
+		l.Model,
+		strings.ToLower(l.Condition),
+		strings.ToLower(l.FrameSize),
+		strings.ToLower(l.FrameMaterial),
+		l.FrontTravel,
+		l.RearTravel,
+	}, "|")
+
+	hasher := sha256.New()
+	hasher.Write([]byte(uniqueString))
+	return hex.EncodeToString(hasher.Sum(nil))
 }

@@ -27,8 +27,10 @@ func main() {
 	filePath := flag.String("filePath", "", "The path to the file to read listings from when in file mode")
 	exportToGoogleSheets := flag.Bool("exportToGoogleSheets", false, "Set to true to export listings to Google Sheets")
 	exportToFile := flag.Bool("exportToFile", false, "Set to true to write listings to a file")
+	exportToDB := flag.Bool("exportToDB", false, "Set to true to write listings to a database")
 	bikeType := flag.String("bikeType", "enduro", "The type of bike to scrape listings for")
 	numPages := flag.Int("numPages", 5, "The number of pages to scrape")
+	headless := flag.Bool("headless", false, "Run browser in headless mode")
 	flag.Parse()
 
 	bikeTypeVal := getBikeType(*bikeType)
@@ -39,9 +41,15 @@ func main() {
 	}
 	fmt.Printf("CAD to USD exchange rate: %f\n", exchangeRate)
 
+	scraper, err := scraper.NewScraper(*filePath, *headless)
+	if err != nil {
+		log.Fatalf("could not create scraper: %v", err)
+	}
+	defer scraper.Close()
+
 	var refinedListings []listing.Listing
 	if *fileMode {
-		refinedListings, err = scraper.ReadListingsFromFile(*filePath)
+		refinedListings, err = scraper.ReadListingsFromFile()
 		if err != nil {
 			log.Fatalf("could not read listings from file: %v", err)
 		}
@@ -68,6 +76,12 @@ func main() {
 		err = exporter.ExportToGoogleSheets(refinedListings)
 		if err != nil {
 			log.Fatalf("could not export listings to Google Sheets: %v", err)
+		}
+	}
+	if *exportToDB {
+		err = exporter.ExportToListingsDB(refinedListings)
+		if err != nil {
+			log.Fatalf("could not export listings to database: %v", err)
 		}
 	}
 

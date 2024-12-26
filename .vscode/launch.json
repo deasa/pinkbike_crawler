@@ -4,6 +4,20 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
+        {
+            "name": "Write To DB",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}",
+            "args": [
+                "-exportToDB=true",
+                "-bikeType=enduro",
+                "-numPages=5"
+            ]
+        },
+
         {
             "name": "Write To File And Sheets",
             "type": "go",
@@ -13,7 +27,7 @@
             "args": [
                 "-exportToFile=true",
                 "-exportToGoogleSheets=true",
-                "-bikeType=enduro",
+                "-bikeType=xc",
                 "-numPages=500"
             ]
         },
@@ -81,7 +95,8 @@
                 "-exportToFile=false",
                 "-exportToGoogleSheets=false",
                 "-bikeType=enduro",
-                "-numPages=5"
+                "-numPages=5",
+                "-headless=false"
             ]
         }
     ]
