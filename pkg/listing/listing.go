@@ -12,13 +12,13 @@ import (
 )
 
 type RawListing struct {
-	Title, Price, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, URL string
+	Title, Price, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, URL, DetailsLink string
 }
 
 type Listing struct {
-	Title, Year, Manufacturer, Model, Price, Currency, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, NeedsReview, URL, Hash string
-	FirstSeen, LastSeen                                                                                                                                time.Time
-	Active                                                                                                                                             bool
+	Title, Year, Manufacturer, Model, Price, Currency, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, NeedsReview, URL, DetailsLink, Hash string
+	FirstSeen, LastSeen                                                                                                                                             time.Time
+	Active                                                                                                                                                          bool
 }
 
 func (l RawListing) Print() string {

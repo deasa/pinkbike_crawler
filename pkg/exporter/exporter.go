@@ -21,7 +21,7 @@ const (
 )
 
 var (
-	csvHeaders = []string{"Title", "Year", "Manufacturer", "Model", "USD Price", "Original Currency", "Condition", "Frame Size", "Wheel Size", "Front Travel", "Rear Travel", "Material", "Reason for Review", "URL"}
+	csvHeaders = []string{"Title", "Year", "Manufacturer", "Model", "USD Price", "Original Currency", "Condition", "Frame Size", "Wheel Size", "Front Travel", "Rear Travel", "Material", "Reason for Review", "URL", "Details Link"}
 )
 
 func WriteListingsToFile(listings []listing.Listing, filenameForGoodListings, filenameForSuspectListings string) error {
@@ -54,7 +54,7 @@ func WriteListingsToFile(listings []listing.Listing, filenameForGoodListings, fi
 	}
 
 	for _, l := range listings {
-		row := []string{l.Title, l.Year, l.Manufacturer, l.Model, l.Price, l.Currency, l.Condition, l.FrameSize, l.WheelSize, l.FrontTravel, l.RearTravel, l.FrameMaterial, l.NeedsReview, l.URL}
+		row := []string{l.Title, l.Year, l.Manufacturer, l.Model, l.Price, l.Currency, l.Condition, l.FrameSize, l.WheelSize, l.FrontTravel, l.RearTravel, l.FrameMaterial, l.NeedsReview, l.URL, l.DetailsLink}
 		if l.NeedsReview != "" {
 			err = suspectWriter.Write(row)
 			if err != nil {
@@ -218,13 +218,12 @@ func ExportToListingsDB(listings []listing.Listing) error {
 
 	// Insert price history
 	priceStmt, err := db.Prepare(`
-	INSERT INTO price_history (listing_hash, price, currency)
-	SELECT ?, ?, ?
+	INSERT INTO price_history (listing_hash, price)
+	SELECT ?, ?
 	WHERE NOT EXISTS (
 		SELECT 1 FROM price_history 
 		WHERE listing_hash = ? 
 		AND price = ? 
-		AND currency = ? 
 		AND recorded_at > datetime('now', '-1 day')
 	)
 	`)
@@ -246,7 +245,7 @@ func ExportToListingsDB(listings []listing.Listing) error {
 		}
 
 		// Record price change
-		_, err = priceStmt.Exec(hash, l.Price, l.Currency, hash, l.Price, l.Currency)
+		_, err = priceStmt.Exec(hash, l.Price, hash, l.Price)
 		if err != nil {
 			return fmt.Errorf("failed to record price change: %v", err)
 		}

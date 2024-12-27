@@ -13,8 +13,9 @@
             "program": "${workspaceFolder}",
             "args": [
                 "-exportToDB=true",
-                "-bikeType=enduro",
-                "-numPages=5"
+                "-bikeType=xc",
+                "-numPages=500",
+                "-headless=false"
             ]
         },
 

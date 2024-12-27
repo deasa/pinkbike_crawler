@@ -186,7 +186,13 @@ func scrapePage(page playwright.Page) ([]listing.RawListing, string, error) {
 }
 
 func getListing(entry playwright.Locator) listing.RawListing {
-	title, err := entry.Locator("div.bsitem-title > a").TextContent()
+	titleElement := entry.Locator("div.bsitem-title > a")
+	title, err := titleElement.TextContent()
+	if err != nil {
+		fmt.Println("\tcould not get title")
+	}
+
+	link, err := titleElement.GetAttribute("href")
 	if err != nil {
 		fmt.Println("\tcould not get title")
 	}
@@ -241,6 +247,7 @@ func getListing(entry playwright.Locator) listing.RawListing {
 		RearTravel:    rearTravel,
 		FrameMaterial: material,
 		URL:           url,
+		DetailsLink:   link,
 	}
 
 	return sanitize(l)
