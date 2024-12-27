@@ -36,13 +36,52 @@ func main() {
 
 	bikeTypeVal := getBikeType(*bikeType)
 
+	var exporters []exporter.Exporter
+	defer func() {
+		for _, e := range exporters {
+			e.Close()
+		}
+	}()
+
+	csvExp := &exporter.CSVExporter{}
+	if *exportToFile {
+		fileName := getFileName(bikeTypeVal)
+		csvExp = exporter.NewCSVExporter(
+			"runs/"+fileName,
+			"runs/suspect_"+fileName,
+		)
+		exporters = append(exporters, csvExp)
+	}
+
+	sheetsExp := &exporter.SheetsExporter{}
+	var err error
+	if *exportToGoogleSheets {
+		sheetsExp, err = exporter.NewSheetsExporter(
+			"pinkbike-exporter-8bc8e681ffa1.json",
+			spreadsheetID,
+		)
+		if err != nil {
+			log.Fatalf("could not create sheets exporter: %v", err)
+		}
+		exporters = append(exporters, sheetsExp)
+	}
+
+	dbExp, err := exporter.NewDBExporter("listings.db")
+	if err != nil {
+		log.Fatalf("could not create database exporter: %v", err)
+	}
+
+	if *exportToDB {
+		exporters = append(exporters, dbExp)
+	}
+
 	exchangeRate, err := getCADtoUSDExchangeRate()
 	if err != nil {
 		log.Fatalf("could not get exchange rate: %v", err)
 	}
 	fmt.Printf("CAD to USD exchange rate: %f\n", exchangeRate)
 
-	scraper, err := scraper.NewScraper(*filePath, *headless)
+	scraper, err := scraper.NewScraper(*filePath, *headless, urlBase, bikeTypeVal, *dbExp)
 	if err != nil {
 		log.Fatalf("could not create scraper: %v", err)
 	}
@@ -55,44 +94,17 @@ func main() {
 			log.Fatalf("could not read listings from file: %v", err)
 		}
 	} else {
-		rawListings, err := scraper.PerformWebScraping(urlBase, *numPages, bikeTypeVal)
+		rawListings, err := scraper.PerformWebScraping(*numPages)
 		if err != nil {
 			log.Fatalf("could not perform web scraping: %v", err)
 		}
 		for _, l := range rawListings {
 			refinedListings = append(refinedListings, l.PostProcess(exchangeRate))
 		}
-	}
-
-	fileName := getFileName(bikeTypeVal)
-
-	var exporters []exporter.Exporter
-
-	if *exportToFile {
-		csvExp := exporter.NewCSVExporter(
-			"runs/"+fileName,
-			"runs/suspect_"+fileName,
-		)
-		exporters = append(exporters, csvExp)
-	}
-
-	if *exportToGoogleSheets {
-		sheetsExp, err := exporter.NewSheetsExporter(
-			"pinkbike-exporter-8bc8e681ffa1.json",
-			spreadsheetID,
-		)
+		refinedListings, err = scraper.FetchListingDetails(refinedListings)
 		if err != nil {
-			log.Fatalf("could not create sheets exporter: %v", err)
+			log.Fatalf("error fetching listing details: %v", err)
 		}
-		exporters = append(exporters, sheetsExp)
-	}
-
-	if *exportToDB {
-		dbExp, err := exporter.NewDBExporter("listings.db")
-		if err != nil {
-			log.Fatalf("could not create database exporter: %v", err)
-		}
-		exporters = append(exporters, dbExp)
 	}
 
 	// Export using all configured exporters

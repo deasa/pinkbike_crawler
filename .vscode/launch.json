@@ -93,8 +93,6 @@
             "mode": "auto",
             "program": "${workspaceFolder}",
             "args": [
-                "-exportToFile=false",
-                "-exportToGoogleSheets=false",
                 "-bikeType=enduro",
                 "-numPages=5",
                 "-headless=false"

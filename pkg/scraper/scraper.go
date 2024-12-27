@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/playwright-community/playwright-go"
 
+	"pinkbike-scraper/pkg/exporter"
 	"pinkbike-scraper/pkg/listing"
 )
 
@@ -24,14 +27,17 @@ type BikeType string
 
 // Scraper holds configuration for scraping operations
 type Scraper struct {
-	filePath string
-	headless bool
-	pw       *playwright.Playwright
-	browser  playwright.Browser
+	filePath   string
+	headless   bool
+	pw         *playwright.Playwright
+	browser    playwright.Browser
+	baseUrl    string
+	dbExporter exporter.DBExporter
+	page       playwright.Page
 }
 
 // NewScraper creates and returns a new Scraper instance
-func NewScraper(filePath string, headless bool) (*Scraper, error) {
+func NewScraper(filePath string, headless bool, baseUrl string, bikeType BikeType, dbExporter exporter.DBExporter) (*Scraper, error) {
 	err := playwright.Install()
 	if err != nil {
 		return nil, fmt.Errorf("could not install playwright: %v", err)
@@ -50,11 +56,30 @@ func NewScraper(filePath string, headless bool) (*Scraper, error) {
 		return nil, fmt.Errorf("could not launch browser: %v", err)
 	}
 
+	page, err := browser.NewPage()
+	if err != nil {
+		return nil, fmt.Errorf("could not create page: %v", err)
+	}
+
+	url := getListingsUrl(baseUrl, bikeType)
+
+	resp, err := page.Goto(url)
+	if err != nil {
+		return nil, fmt.Errorf("could not goto: %v", err)
+	}
+
+	if resp.Status() != 200 {
+		return nil, fmt.Errorf("could not get 200 status: %v", resp.Status())
+	}
+
 	return &Scraper{
-		filePath: filePath,
-		headless: headless,
-		pw:       pw,
-		browser:  browser,
+		filePath:   filePath,
+		headless:   headless,
+		pw:         pw,
+		browser:    browser,
+		baseUrl:    baseUrl,
+		page:       page,
+		dbExporter: dbExporter,
 	}, nil
 }
 
@@ -105,19 +130,10 @@ func (s *Scraper) ReadListingsFromFile() ([]listing.Listing, error) {
 }
 
 // PerformWebScraping performs the web scraping operation
-func (s *Scraper) PerformWebScraping(url string, numPages int, bikeType BikeType) ([]listing.RawListing, error) {
-	page, err := s.browser.NewPage()
-	if err != nil {
-		return nil, fmt.Errorf("could not create page: %v", err)
-	}
-
-	if _, err = page.Goto(getListingsUrl(url, bikeType)); err != nil {
-		return nil, fmt.Errorf("could not goto: %v", err)
-	}
-
+func (s *Scraper) PerformWebScraping(numPages int) ([]listing.RawListing, error) {
 	fmt.Println("Scraping page: 1")
 
-	listings, nextPageURL, err := scrapePage(page)
+	listings, nextPageURL, err := scrapePage(s.page)
 	if err != nil {
 		return nil, fmt.Errorf("could not scrape page: %v", err)
 	}
@@ -128,11 +144,11 @@ func (s *Scraper) PerformWebScraping(url string, numPages int, bikeType BikeType
 		pages++
 		fmt.Println("Scraping page: ", pages)
 
-		if _, err = page.Goto(url + nextPageURL); err != nil {
+		if _, err = s.page.Goto(s.baseUrl + nextPageURL); err != nil {
 			return nil, fmt.Errorf("could not goto: %v", err)
 		}
 
-		newListings, nextPageURL, err = scrapePage(page)
+		newListings, nextPageURL, err = scrapePage(s.page)
 		if err != nil {
 			return nil, fmt.Errorf("could not scrape page: %v", err)
 		}
@@ -141,6 +157,91 @@ func (s *Scraper) PerformWebScraping(url string, numPages int, bikeType BikeType
 	}
 
 	return listings, nil
+}
+
+func (s *Scraper) FetchListingDetails(listings []listing.Listing) ([]listing.Listing, error) {
+	page, err := s.browser.NewPage()
+	if err != nil {
+		return nil, fmt.Errorf("could not create page: %v", err)
+	}
+
+	listingsWithDetails := []listing.Listing{}
+
+	for _, l := range listings {
+		// if listing exists in db, and has details, skip
+		exists, err := s.dbExporter.ListingExistsWithDetails(l.Hash)
+		if err != nil {
+			return nil, fmt.Errorf("could not check if listing exists: %v", err)
+		}
+
+		if exists {
+			continue
+		}
+
+		// if listing exists in db, and does not have details, perform details scrape
+		resp, err := page.Goto(l.URL)
+		if err != nil {
+			return nil, fmt.Errorf("could not goto: %v", err)
+		}
+
+		if resp.Status() != 200 {
+			return nil, fmt.Errorf("could not get 200 status: %v", resp.Status())
+		}
+
+		_, err = s.detailsScrape(page)
+		if err != nil {
+			return nil, fmt.Errorf("could not scrape details: %v", err)
+		}
+
+	}
+
+	return listingsWithDetails, nil
+}
+
+func (s *Scraper) detailsScrape(page playwright.Page) (*listing.ListingDetails, error) {
+	details := listing.ListingDetails{}
+
+	sellerType, err := page.Locator(`xpath=//div[contains(@class, "buysell-details-column")]//b[contains(text(), "Seller Type")]/parent::*`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+	if err != nil {
+		return nil, fmt.Errorf("\tcould not get seller type: %v", err)
+	}
+
+	originalPostDate, err := page.Locator(`xpath=//div[contains(@class, "buysell-details-column")]//b[contains(text(), "Original Post Date")]//parent::div`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+	if err != nil {
+		return nil, fmt.Errorf("\tcould not get original post date: %v", err)
+	}
+
+	dateRegex := regexp.MustCompile(`Original Post Date:\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-\d{2}-\d{4})`)
+	matches := dateRegex.FindStringSubmatch(originalPostDate)
+	if len(matches) < 2 {
+		return nil, fmt.Errorf("\tcould not find date in string: %s", originalPostDate)
+	}
+
+	postDate, err := time.Parse("Jan-02-2006", matches[1])
+	if err != nil {
+		return nil, fmt.Errorf("\tcould not parse original post date: %v", err)
+	}
+
+	description, err := page.Locator(`xpath=//div[contains(@class, 'buysell-container description')]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+	if err != nil {
+		return nil, fmt.Errorf("\tcould not get description: %v", err)
+	}
+
+	restrictions, err := page.Locator(`.buysell-container-right.buysell-restrictions .buysell-container`).TextContent(playwright.LocatorTextContentOptions{
+		Timeout: playwright.Float(1000),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("\tcould not get restrictions: %v", err)
+	}
+
+	restrictions = strings.Split(restrictions, "Phone Number:")[0]
+
+	details.SellerType = listing.ParseSellerType(parseItemDetail(sellerType, "Seller Type:"))
+	details.OriginalPostDate = postDate
+	details.Description = description
+	details.Restrictions = parseItemDetail(restrictions, "Restrictions:")
+
+	return &details, nil
 }
 
 func getListingsUrl(urlBase string, bikeType BikeType) string {
@@ -191,6 +292,7 @@ func getListing(entry playwright.Locator) listing.RawListing {
 	if err != nil {
 		fmt.Println("\tcould not get title")
 	}
+	title = strings.ReplaceAll(title, "\n", "")
 
 	link, err := titleElement.GetAttribute("href")
 	if err != nil {

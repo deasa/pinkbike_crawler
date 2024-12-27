@@ -16,9 +16,33 @@ type RawListing struct {
 }
 
 type Listing struct {
-	Title, Year, Manufacturer, Model, Price, Currency, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, NeedsReview, URL, DetailsLink, Hash string
-	FirstSeen, LastSeen                                                                                                                                             time.Time
-	Active                                                                                                                                                          bool
+	Title, Year, Manufacturer, Model, Price, Currency, Condition                         string
+	FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, NeedsReview, URL, Hash string
+	FirstSeen, LastSeen                                                                  time.Time
+	Active                                                                               bool
+	Details                                                                              ListingDetails
+}
+
+type ListingDetails struct {
+	SellerType       SellerType
+	OriginalPostDate time.Time
+	Description      string
+	Restrictions     string
+}
+
+type SellerType string
+
+const (
+	Private  SellerType = "private"
+	Business SellerType = "business"
+)
+
+func ParseSellerType(s string) SellerType {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if strings.Contains(s, "business") {
+		return Business
+	}
+	return Private
 }
 
 func (l RawListing) Print() string {
@@ -28,7 +52,7 @@ func (l RawListing) Print() string {
 
 func (l RawListing) PostProcess(exchangeRate float64) Listing {
 	newL := Listing{
-		Title:         l.Title,
+		Title:         strings.ReplaceAll(l.Title, "\n", ""),
 		Year:          extractYear(l.Title),
 		Manufacturer:  extractManufacturer(l.Title),
 		Model:         extractModel(l.Title),

@@ -65,6 +65,10 @@ func initializeDB(db *sql.DB) error {
         front_travel TEXT,
         rear_travel TEXT,
         frame_material TEXT,
+		description TEXT,
+		restrictions TEXT,
+		seller_type TEXT,
+		original_post_date DATETIME,
         needs_review TEXT,
         url TEXT,
         hash TEXT UNIQUE,
@@ -93,22 +97,32 @@ func initializeDB(db *sql.DB) error {
 	return nil
 }
 
+func (e *DBExporter) ListingExistsWithDetails(hash string) (bool, error) {
+	var exists bool
+	err := e.db.QueryRow("SELECT EXISTS(SELECT 1 FROM listings WHERE hash = ? AND description IS NOT NULL)", hash).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if listing exists: %w", err)
+	}
+	return exists, nil
+}
+
 func (e *DBExporter) exportListings(tx *sql.Tx, listings []listing.Listing) error {
 	stmt, err := tx.Prepare(`
         INSERT INTO listings (
             title, year, manufacturer, model, price, currency, 
             condition, frame_size, wheel_size, frame_material,
             front_travel, rear_travel, needs_review, url, hash,
+            description, restrictions, seller_type, original_post_date,
             first_seen, last_seen, active
         ) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)
         ON CONFLICT(hash) DO UPDATE SET 
             last_seen = CURRENT_TIMESTAMP,
             active = 1,
             url = excluded.url,
             price = excluded.price,
-            condition = excluded.condition
     `)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
@@ -131,6 +145,7 @@ func (e *DBExporter) exportListing(stmt *sql.Stmt, tx *sql.Tx, l listing.Listing
 		l.Currency, l.Condition, l.FrameSize, l.WheelSize,
 		l.FrameMaterial, l.FrontTravel, l.RearTravel,
 		l.NeedsReview, l.URL, hash,
+		l.Details.Description, l.Details.Restrictions, l.Details.SellerType, l.Details.OriginalPostDate,
 	); err != nil {
 		return fmt.Errorf("failed to insert listing: %w", err)
 	}
