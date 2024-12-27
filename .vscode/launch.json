@@ -13,8 +13,8 @@
             "program": "${workspaceFolder}",
             "args": [
                 "-exportToDB=true",
-                "-bikeType=xc",
-                "-numPages=500",
+                "-bikeType=enduro",
+                "-numPages=5",
                 "-headless=false"
             ]
         },
@@ -42,7 +42,7 @@
                 "-exportToFile=true",
                 "-exportToGoogleSheets=false",
                 "-bikeType=enduro",
-                // "-numPages=3"
+                "-numPages=3"
             ]
         },
         {

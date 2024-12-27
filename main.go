@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	urlBase = "https://www.pinkbike.com/buysell/list/"
+	urlBase       = "https://www.pinkbike.com/buysell/list/"
+	spreadsheetID = "16GYqn_Asp6_MhsJNAiMSphtUpJn6P1nNw-BRQG0s5Ik"
 )
 
 type ExchangeRateResponse struct {
@@ -65,29 +66,40 @@ func main() {
 
 	fileName := getFileName(bikeTypeVal)
 
+	var exporters []exporter.Exporter
+
 	if *exportToFile {
-		err = exporter.WriteListingsToFile(refinedListings, "runs/"+fileName, "runs/suspect_"+fileName)
-		if err != nil {
-			log.Fatalf("could not write listings to file: %v", err)
-		}
+		csvExp := exporter.NewCSVExporter(
+			"runs/"+fileName,
+			"runs/suspect_"+fileName,
+		)
+		exporters = append(exporters, csvExp)
 	}
 
 	if *exportToGoogleSheets {
-		err = exporter.ExportToGoogleSheets(refinedListings)
+		sheetsExp, err := exporter.NewSheetsExporter(
+			"pinkbike-exporter-8bc8e681ffa1.json",
+			spreadsheetID,
+		)
 		if err != nil {
-			log.Fatalf("could not export listings to Google Sheets: %v", err)
+			log.Fatalf("could not create sheets exporter: %v", err)
 		}
-	}
-	if *exportToDB {
-		err = exporter.ExportToListingsDB(refinedListings)
-		if err != nil {
-			log.Fatalf("could not export listings to database: %v", err)
-		}
+		exporters = append(exporters, sheetsExp)
 	}
 
-	err = exporter.ExportToListingsDB(refinedListings)
-	if err != nil {
-		log.Fatalf("could not export listings to database: %v", err)
+	if *exportToDB {
+		dbExp, err := exporter.NewDBExporter("listings.db")
+		if err != nil {
+			log.Fatalf("could not create database exporter: %v", err)
+		}
+		exporters = append(exporters, dbExp)
+	}
+
+	// Export using all configured exporters
+	for _, exp := range exporters {
+		if err := exp.Export(refinedListings); err != nil {
+			log.Printf("export error: %v", err)
+		}
 	}
 }
 
