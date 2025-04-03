@@ -66,6 +66,7 @@ func (l RawListing) PostProcess(exchangeRate float64) Listing {
 		FrameMaterial: l.FrameMaterial,
 		URL:           l.URL,
 	}
+	newL.Hash = newL.ComputeHash()
 
 	if reason := validateListing(newL); reason != "" {
 		newL.NeedsReview = reason

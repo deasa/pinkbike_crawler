@@ -102,6 +102,7 @@ func TestPerformWebScraping(t *testing.T) {
 		FrontTravel:   "130 mm",
 		RearTravel:    "120 mm",
 		URL:           "https://www.pinkbike.com/buysell/3960926/",
+		Hash:          "66c588e537a8dea828dc24470254446efcef79b5b207f5567d7511624b40775e",
 	})
 }
 

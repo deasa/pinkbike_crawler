@@ -139,6 +139,7 @@ func TestPostProcess(t *testing.T) {
 				FrontTravel:   "170 mm",
 				RearTravel:    "170 mm",
 				FrameMaterial: "Carbon Fiber",
+				Hash:          "8982c0c1f9c6d0ed382aaaff947bcf046eef2afbc5a0c14f1e159d815db433c7",
 			},
 		},
 		{
@@ -166,6 +167,7 @@ func TestPostProcess(t *testing.T) {
 				FrontTravel:   "170 mm",
 				RearTravel:    "160 mm",
 				FrameMaterial: "Aluminum",
+				Hash:          "a18c8f6017528538d13f5a32353f431815e9c1cd052e6444980a8880d27a551e",
 			},
 		},
 	}

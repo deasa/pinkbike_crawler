@@ -1,14 +1,18 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
+	"pinkbike-scraper/pkg/db"
 	"pinkbike-scraper/pkg/exporter"
 	"pinkbike-scraper/pkg/listing"
 	"pinkbike-scraper/pkg/scraper"
@@ -19,99 +23,161 @@ const (
 	spreadsheetID = "16GYqn_Asp6_MhsJNAiMSphtUpJn6P1nNw-BRQG0s5Ik"
 )
 
+type Config struct {
+	// Input configuration
+	InputMode  string
+	FilePath   string
+	NumPages   int
+	BikeType   string
+	Headless   bool
+	GetDetails bool
+
+	// Export configuration
+	ExportModes    []string
+	SheetsCredPath string
+	SpreadsheetID  string
+	DBPath         string
+}
+
 type ExchangeRateResponse struct {
 	Rates map[string]float64
 }
 
 func main() {
-	fileMode := flag.Bool("fileMode", false, "Set to true to read listings from a file instead of web scraping")
-	filePath := flag.String("filePath", "", "The path to the file to read listings from when in file mode")
-	exportToGoogleSheets := flag.Bool("exportToGoogleSheets", false, "Set to true to export listings to Google Sheets")
-	exportToFile := flag.Bool("exportToFile", false, "Set to true to write listings to a file")
-	exportToDB := flag.Bool("exportToDB", false, "Set to true to write listings to a database")
-	bikeType := flag.String("bikeType", "enduro", "The type of bike to scrape listings for")
-	numPages := flag.Int("numPages", 5, "The number of pages to scrape")
-	headless := flag.Bool("headless", false, "Run browser in headless mode")
-	flag.Parse()
+	cfg := parseFlags()
 
-	bikeTypeVal := getBikeType(*bikeType)
+	dbWorker, err := db.NewDBWorker(cfg.DBPath)
+	if err != nil {
+		log.Fatalf("could not create database worker: %v", err)
+	}
+	defer dbWorker.Close()
 
-	var exporters []exporter.Exporter
+	scraper, err := scraper.NewScraper(
+		cfg.FilePath,
+		cfg.Headless,
+		urlBase,
+		getBikeType(cfg.BikeType),
+		dbWorker,
+	)
+	if err != nil {
+		log.Fatalf("could not create scraper: %v", err)
+	}
+	defer scraper.Close()
+
+	// Setup exporters
+	exporters, err := setupExporters(cfg, dbWorker)
+	if err != nil {
+		log.Fatalf("failed to setup exporters: %v", err)
+	}
 	defer func() {
 		for _, e := range exporters {
 			e.Close()
 		}
 	}()
 
-	csvExp := &exporter.CSVExporter{}
-	if *exportToFile {
-		fileName := getFileName(bikeTypeVal)
-		csvExp = exporter.NewCSVExporter(
-			"runs/"+fileName,
-			"runs/suspect_"+fileName,
-		)
-		exporters = append(exporters, csvExp)
-	}
-
-	sheetsExp := &exporter.SheetsExporter{}
-	var err error
-	if *exportToGoogleSheets {
-		sheetsExp, err = exporter.NewSheetsExporter(
-			"pinkbike-exporter-8bc8e681ffa1.json",
-			spreadsheetID,
-		)
-		if err != nil {
-			log.Fatalf("could not create sheets exporter: %v", err)
-		}
-		exporters = append(exporters, sheetsExp)
-	}
-
-	dbExp, err := exporter.NewDBExporter("listings.db")
-	if err != nil {
-		log.Fatalf("could not create database exporter: %v", err)
-	}
-
-	if *exportToDB {
-		exporters = append(exporters, dbExp)
-	}
-
+	// Get exchange rate
 	exchangeRate, err := getCADtoUSDExchangeRate()
 	if err != nil {
 		log.Fatalf("could not get exchange rate: %v", err)
 	}
 	fmt.Printf("CAD to USD exchange rate: %f\n", exchangeRate)
 
-	scraper, err := scraper.NewScraper(*filePath, *headless, urlBase, bikeTypeVal, *dbExp)
+	// Get listings
+	listings, err := getListings(cfg, dbWorker, scraper, exchangeRate)
 	if err != nil {
-		log.Fatalf("could not create scraper: %v", err)
+		log.Fatalf("failed to get listings: %v", err)
 	}
-	defer scraper.Close()
 
-	var refinedListings []listing.Listing
-	if *fileMode {
-		refinedListings, err = scraper.ReadListingsFromFile()
+	if cfg.GetDetails {
+		listings, err = scraper.GetDetailedListings(listings)
 		if err != nil {
-			log.Fatalf("could not read listings from file: %v", err)
+			log.Fatalf("failed to get detailed listings: %v", err)
 		}
-	} else {
-		rawListings, err := scraper.PerformWebScraping(*numPages)
+	}
+
+	// Export listings
+	for _, exp := range exporters {
+		if err := exp.Export(listings); err != nil {
+			log.Printf("export error: %v", err)
+		}
+	}
+}
+
+func parseFlags() *Config {
+	cfg := &Config{}
+
+	// Input flags
+	flag.StringVar(&cfg.InputMode, "input", "web", "Input mode: 'web', 'file', or 'db'")
+	flag.StringVar(&cfg.FilePath, "filePath", "", "Path to input file when using file mode")
+	flag.IntVar(&cfg.NumPages, "numPages", 5, "Number of pages to scrape in web mode")
+	flag.StringVar(&cfg.BikeType, "bikeType", "enduro", "Type of bike to scrape")
+	flag.BoolVar(&cfg.Headless, "headless", false, "Run browser in headless mode")
+	flag.BoolVar(&cfg.GetDetails, "getDetails", false, "Get detailed listing information")
+
+	// Export flags
+	var exportModes string
+	flag.StringVar(&exportModes, "export", "db", "Comma-separated list of export modes: 'csv', 'sheets', 'db'")
+	flag.StringVar(&cfg.SheetsCredPath, "sheetsCredPath", "pinkbike-exporter-8bc8e681ffa1.json", "Path to Google Sheets credentials")
+	flag.StringVar(&cfg.SpreadsheetID, "spreadsheetID", spreadsheetID, "Google Sheets spreadsheet ID")
+	flag.StringVar(&cfg.DBPath, "dbPath", "listings.db", "Path to SQLite database")
+
+	flag.Parse()
+
+	// Parse export modes
+	cfg.ExportModes = strings.Split(exportModes, ",")
+	return cfg
+}
+
+func setupExporters(cfg *Config, dbWorker *db.DBWorker) ([]exporter.Exporter, error) {
+	var exporters []exporter.Exporter
+
+	for _, mode := range cfg.ExportModes {
+		switch strings.TrimSpace(mode) {
+		case "csv":
+			fileName := getFileName(getBikeType(cfg.BikeType))
+			csvExp := exporter.NewCSVExporter(
+				"runs/"+fileName,
+				"runs/suspect_"+fileName,
+			)
+			exporters = append(exporters, csvExp)
+
+		case "sheets":
+			sheetsExp, err := exporter.NewSheetsExporter(
+				cfg.SheetsCredPath,
+				cfg.SpreadsheetID,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("could not create sheets exporter: %v", err)
+			}
+			exporters = append(exporters, sheetsExp)
+
+		case "db":
+			dbExp := exporter.NewDBExporter(dbWorker)
+			exporters = append(exporters, dbExp)
+		}
+	}
+
+	return exporters, nil
+}
+
+func getListings(cfg *Config, dbWorker *db.DBWorker, scraper *scraper.Scraper, exchangeRate float64) ([]listing.Listing, error) {
+	switch cfg.InputMode {
+	case "file":
+		return readListingsFromFile(cfg.FilePath)
+	case "db":
+		return dbWorker.GetListings()
+	case "web":
+		rawListings, err := scraper.PerformWebScraping(cfg.NumPages)
 		if err != nil {
-			log.Fatalf("could not perform web scraping: %v", err)
+			return nil, err
 		}
+		var refinedListings []listing.Listing
 		for _, l := range rawListings {
 			refinedListings = append(refinedListings, l.PostProcess(exchangeRate))
 		}
-		refinedListings, err = scraper.FetchListingDetails(refinedListings)
-		if err != nil {
-			log.Fatalf("error fetching listing details: %v", err)
-		}
-	}
-
-	// Export using all configured exporters
-	for _, exp := range exporters {
-		if err := exp.Export(refinedListings); err != nil {
-			log.Printf("export error: %v", err)
-		}
+		return refinedListings, nil
+	default:
+		return nil, fmt.Errorf("invalid input mode: %s", cfg.InputMode)
 	}
 }
 
@@ -157,6 +223,41 @@ func getCADtoUSDExchangeRate() (float64, error) {
 	}
 
 	return data.Rates["USD"], nil
+}
+
+// ReadListingsFromFile reads listings from the configured file path
+func readListingsFromFile(filePath string) ([]listing.Listing, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("could not open file: %v", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("could not read file: %v", err)
+	}
+
+	listings := make([]listing.Listing, 0, len(records))
+	for _, record := range records {
+		l := listing.Listing{
+			Title:         record[0],
+			Year:          record[1],
+			Price:         record[2],
+			Currency:      record[3],
+			Condition:     record[4],
+			FrameSize:     record[5],
+			WheelSize:     record[6],
+			FrontTravel:   record[7],
+			RearTravel:    record[8],
+			FrameMaterial: record[9],
+		}
+
+		listings = append(listings, l)
+	}
+
+	return listings, nil
 }
 
 // todo implement "a.k.a" for models and manufacturers so that they all get normalized to a single name

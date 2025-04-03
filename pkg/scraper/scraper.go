@@ -1,17 +1,15 @@
 package scraper
 
 import (
-	"encoding/csv"
 	"fmt"
 	"log"
-	"os"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/playwright-community/playwright-go"
 
-	"pinkbike-scraper/pkg/exporter"
+	"pinkbike-scraper/pkg/db"
 	"pinkbike-scraper/pkg/listing"
 )
 
@@ -27,17 +25,17 @@ type BikeType string
 
 // Scraper holds configuration for scraping operations
 type Scraper struct {
-	filePath   string
-	headless   bool
-	pw         *playwright.Playwright
-	browser    playwright.Browser
-	baseUrl    string
-	dbExporter exporter.DBExporter
-	page       playwright.Page
+	filePath string
+	headless bool
+	pw       *playwright.Playwright
+	browser  playwright.Browser
+	baseUrl  string
+	dbWorker *db.DBWorker
+	page     playwright.Page
 }
 
 // NewScraper creates and returns a new Scraper instance
-func NewScraper(filePath string, headless bool, baseUrl string, bikeType BikeType, dbExporter exporter.DBExporter) (*Scraper, error) {
+func NewScraper(filePath string, headless bool, baseUrl string, bikeType BikeType, dbWorker *db.DBWorker) (*Scraper, error) {
 	err := playwright.Install()
 	if err != nil {
 		return nil, fmt.Errorf("could not install playwright: %v", err)
@@ -73,13 +71,13 @@ func NewScraper(filePath string, headless bool, baseUrl string, bikeType BikeTyp
 	}
 
 	return &Scraper{
-		filePath:   filePath,
-		headless:   headless,
-		pw:         pw,
-		browser:    browser,
-		baseUrl:    baseUrl,
-		page:       page,
-		dbExporter: dbExporter,
+		filePath: filePath,
+		headless: headless,
+		pw:       pw,
+		browser:  browser,
+		baseUrl:  baseUrl,
+		page:     page,
+		dbWorker: dbWorker,
 	}, nil
 }
 
@@ -92,41 +90,6 @@ func (s *Scraper) Close() error {
 		return fmt.Errorf("could not stop Playwright: %v", err)
 	}
 	return nil
-}
-
-// ReadListingsFromFile reads listings from the configured file path
-func (s *Scraper) ReadListingsFromFile() ([]listing.Listing, error) {
-	file, err := os.Open(s.filePath)
-	if err != nil {
-		return nil, fmt.Errorf("could not open file: %v", err)
-	}
-	defer file.Close()
-
-	reader := csv.NewReader(file)
-	records, err := reader.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("could not read file: %v", err)
-	}
-
-	listings := make([]listing.Listing, 0, len(records))
-	for _, record := range records {
-		l := listing.Listing{
-			Title:         record[0],
-			Year:          record[1],
-			Price:         record[2],
-			Currency:      record[3],
-			Condition:     record[4],
-			FrameSize:     record[5],
-			WheelSize:     record[6],
-			FrontTravel:   record[7],
-			RearTravel:    record[8],
-			FrameMaterial: record[9],
-		}
-
-		listings = append(listings, l)
-	}
-
-	return listings, nil
 }
 
 // PerformWebScraping performs the web scraping operation
@@ -159,7 +122,7 @@ func (s *Scraper) PerformWebScraping(numPages int) ([]listing.RawListing, error)
 	return listings, nil
 }
 
-func (s *Scraper) FetchListingDetails(listings []listing.Listing) ([]listing.Listing, error) {
+func (s *Scraper) GetDetailedListings(listings []listing.Listing) ([]listing.Listing, error) {
 	page, err := s.browser.NewPage()
 	if err != nil {
 		return nil, fmt.Errorf("could not create page: %v", err)
@@ -169,9 +132,10 @@ func (s *Scraper) FetchListingDetails(listings []listing.Listing) ([]listing.Lis
 
 	for _, l := range listings {
 		// if listing exists in db, and has details, skip
-		exists, err := s.dbExporter.ListingExistsWithDetails(l.Hash)
+		exists, err := s.dbWorker.ListingExistsWithDetails(l.Hash)
 		if err != nil {
-			return nil, fmt.Errorf("could not check if listing exists: %v", err)
+			fmt.Printf("could not check if listing exists: %v", err)
+			continue
 		}
 
 		if exists {
@@ -181,18 +145,23 @@ func (s *Scraper) FetchListingDetails(listings []listing.Listing) ([]listing.Lis
 		// if listing exists in db, and does not have details, perform details scrape
 		resp, err := page.Goto(l.URL)
 		if err != nil {
-			return nil, fmt.Errorf("could not goto: %v", err)
+			fmt.Printf("could not goto: %v", err)
+			continue
 		}
 
 		if resp.Status() != 200 {
-			return nil, fmt.Errorf("could not get 200 status: %v", resp.Status())
+			fmt.Printf("could not get 200 status: %v", resp.Status())
+			continue
 		}
 
-		_, err = s.detailsScrape(page)
+		details, err := s.detailsScrape(page)
 		if err != nil {
-			return nil, fmt.Errorf("could not scrape details: %v", err)
+			fmt.Printf("could not scrape details: %v", err)
+			continue
 		}
 
+		l.Details = *details
+		listingsWithDetails = append(listingsWithDetails, l)
 	}
 
 	return listingsWithDetails, nil
