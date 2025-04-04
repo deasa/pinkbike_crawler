@@ -13,9 +13,10 @@
             "args": [
                 "-input=web",
                 "-export=db",
-                "-bikeType=trail",
-                "-numPages=500",
-                "-headless=false"
+                "-bikeType=enduro",
+                "-numPages=5",
+                "-headless=false",
+                "-getDetails=true"
             ]
         },
         {

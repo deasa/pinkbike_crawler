@@ -114,14 +114,15 @@ func validateListing(l Listing) string {
 }
 
 func extractYear(title string) string {
-	reg := regexp.MustCompile(`\d{4}`)
+	// Look for years between 1980 and current year + 2 to avoid matching random 4-digit numbers
+	reg := regexp.MustCompile(`\b(19[8-9][0-9]|20[0-4][0-9])\b`)
 	s := reg.FindString(title)
 	return s
 }
 
 func extractCurrency(price string) string {
-	reg := regexp.MustCompile(`(CAD|USD)`)
-	return reg.FindString(price)
+	reg := regexp.MustCompile(`(CAD|USD|cad|usd)`)
+	return strings.ToUpper(reg.FindString(price))
 }
 
 func convertPrice(price, currency string, exchangeRate float64) string {
@@ -141,33 +142,96 @@ func convertPrice(price, currency string, exchangeRate float64) string {
 }
 
 func extractPrice(price string) string {
-	reg := regexp.MustCompile(`[0-9,]+`)
-	res := reg.FindString(price)
-	return strings.ReplaceAll(res, ",", "")
+	reg := regexp.MustCompile(`[$]?([0-9,]+)`)
+	matches := reg.FindStringSubmatch(price)
+	if len(matches) > 1 {
+		return strings.ReplaceAll(matches[1], ",", "")
+	}
+	return ""
 }
 
 func extractManufacturer(title string) string {
-	for manufacturer := range bikeModels {
-		if strings.Contains(strings.ToLower(title), strings.ToLower(manufacturer)) {
+	// Try to find manufacturers by looking for word boundaries
+	lowerTitle := strings.ToLower(title)
+	for _, manufacturer := range knownManufacturers {
+		// Use word boundary check with regular expression for more accurate matching
+		pattern := `(?i)\b` + regexp.QuoteMeta(manufacturer) + `\b`
+		matched, _ := regexp.MatchString(pattern, title)
+		if matched {
 			return manufacturer
 		}
 	}
+
+	// Fall back to simpler exact matches
+	for manufacturer := range bikeModels {
+		if strings.Contains(title, manufacturer) {
+			return manufacturer
+		}
+	}
+
+	// Last resort - case insensitive
+	for manufacturer := range bikeModels {
+		if strings.Contains(lowerTitle, strings.ToLower(manufacturer)) {
+			return manufacturer
+		}
+	}
+
 	return "NoManufacturer"
 }
 
 func extractModel(title string) string {
 	manufacturer := extractManufacturer(title)
-	bikes := bikeModels[manufacturer]
+	if manufacturer == "NoManufacturer" {
+		return "NoModelFound"
+	}
 
+	bikes := bikeModels[manufacturer]
+	lowerTitle := strings.ToLower(title)
+
+	// Find the best match by prioritizing longer model names
+	var bestMatch BikeModel
+	bestMatchLength := 0
+
+	// Try exact matches first (case-sensitive)
 	for _, model := range bikes {
-		if strings.Contains(strings.ToLower(title), strings.ToLower(model.Name)) {
-			if model.Purpose == Electric {
-				return model.Name + " Electric"
-			}
-			return model.Name
+		if strings.Contains(title, model.Name) && len(model.Name) > bestMatchLength {
+			bestMatch = model
+			bestMatchLength = len(model.Name)
 		}
 	}
-	return "NoModelFound"
+
+	// If no exact match, try case-insensitive with word boundaries
+	if bestMatchLength == 0 {
+		for _, model := range bikes {
+			modelPattern := `(?i)\b` + regexp.QuoteMeta(model.Name) + `\b`
+			matched, _ := regexp.MatchString(modelPattern, title)
+			if matched && len(model.Name) > bestMatchLength {
+				bestMatch = model
+				bestMatchLength = len(model.Name)
+			}
+		}
+	}
+
+	// If still no match, try simple case-insensitive contains
+	if bestMatchLength == 0 {
+		for _, model := range bikes {
+			if strings.Contains(lowerTitle, strings.ToLower(model.Name)) && len(model.Name) > bestMatchLength {
+				bestMatch = model
+				bestMatchLength = len(model.Name)
+			}
+		}
+	}
+
+	// No match found
+	if bestMatchLength == 0 {
+		return "NoModelFound"
+	}
+
+	// Return match with electric suffix if necessary
+	if bestMatch.Purpose == Electric {
+		return bestMatch.Name + " Electric"
+	}
+	return bestMatch.Name
 }
 
 func (l Listing) ComputeHash() string {
