@@ -20,6 +20,18 @@
             ]
         },
         {
+            "name": "DB to DB",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}",
+            "args": [
+                "-input=db",
+                "-export=db",
+                "-getDetails=false"
+            ]
+        },
+        {
             "name": "populate details for existing listings",
             "type": "go",
             "request": "launch",
