@@ -15,6 +15,7 @@ import (
 	"pinkbike-scraper/pkg/db"
 	"pinkbike-scraper/pkg/exporter"
 	"pinkbike-scraper/pkg/listing"
+	"pinkbike-scraper/pkg/mlb"
 	"pinkbike-scraper/pkg/scraper"
 )
 
@@ -37,6 +38,10 @@ type Config struct {
 	SheetsCredPath string
 	SpreadsheetID  string
 	DBPath         string
+
+	// MLB player configuration
+	PlayerName string
+	PlayerMode bool
 }
 
 type ExchangeRateResponse struct {
@@ -45,6 +50,15 @@ type ExchangeRateResponse struct {
 
 func main() {
 	cfg := parseFlags()
+
+	// If PlayerMode is enabled, get player data and exit
+	if cfg.PlayerMode {
+		if cfg.PlayerName == "" {
+			log.Fatal("Player name is required when using player mode")
+		}
+		getPlayerData(cfg.PlayerName)
+		return
+	}
 
 	dbWorker, err := db.NewDBWorker(cfg.DBPath)
 	if err != nil {
@@ -103,6 +117,69 @@ func main() {
 	}
 }
 
+// getPlayerData fetches and displays MLB player data
+func getPlayerData(playerName string) {
+	fmt.Printf("Searching for player: %s\n", playerName)
+
+	players, err := mlb.SearchPlayer(playerName)
+	if err != nil {
+		log.Fatalf("Failed to search for player: %v", err)
+	}
+
+	if len(players) == 0 {
+		fmt.Println("No players found with that name")
+		return
+	}
+
+	// If multiple players are found, display a list
+	if len(players) > 1 {
+		fmt.Printf("Found %d players matching '%s':\n", len(players), playerName)
+		for i, player := range players {
+			fmt.Printf("%d. %s (%s) - %s\n", i+1, player.Name, player.Position, player.Team)
+		}
+
+		// Ask user to select a player
+		var selection int
+		fmt.Print("Enter the number of the player to see details (or 0 to exit): ")
+		fmt.Scan(&selection)
+
+		if selection < 1 || selection > len(players) {
+			fmt.Println("Exiting...")
+			return
+		}
+
+		// Get detailed info for the selected player
+		selectedPlayer, err := mlb.GetPlayerByID(players[selection-1].PlayerID)
+		if err != nil {
+			log.Fatalf("Failed to get player details: %v", err)
+		}
+
+		displayPlayerInfo(selectedPlayer)
+	} else {
+		// Only one player found, display details directly
+		displayPlayerInfo(players[0])
+	}
+}
+
+// displayPlayerInfo prints detailed player information
+func displayPlayerInfo(player mlb.Player) {
+	fmt.Println("\n===== Player Information =====")
+	fmt.Printf("Name: %s\n", player.Name)
+	fmt.Printf("Position: %s\n", player.Position)
+	fmt.Printf("Team: %s\n", player.Team)
+	fmt.Printf("Jersey Number: %s\n", player.JerseyNumber)
+	fmt.Printf("Status: %s\n", player.Status)
+	fmt.Printf("Age: %s\n", player.Age)
+	fmt.Printf("Birth Date: %s\n", player.BirthDate)
+	fmt.Printf("Birth Place: %s\n", player.BirthPlace)
+	fmt.Printf("Height: %s\n", player.Height)
+	fmt.Printf("Weight: %s lbs\n", player.Weight)
+	fmt.Printf("Bats: %s\n", player.Bats)
+	fmt.Printf("Throws: %s\n", player.Throws)
+	fmt.Printf("Pro Debut: %s\n", player.ProDebutDate)
+	fmt.Println("=============================")
+}
+
 func parseFlags() *Config {
 	cfg := &Config{}
 
@@ -120,6 +197,10 @@ func parseFlags() *Config {
 	flag.StringVar(&cfg.SheetsCredPath, "sheetsCredPath", "pinkbike-exporter-8bc8e681ffa1.json", "Path to Google Sheets credentials")
 	flag.StringVar(&cfg.SpreadsheetID, "spreadsheetID", spreadsheetID, "Google Sheets spreadsheet ID")
 	flag.StringVar(&cfg.DBPath, "dbPath", "listings.db", "Path to SQLite database")
+
+	// MLB player flags
+	flag.StringVar(&cfg.PlayerName, "playerName", "", "Name of MLB player to search for")
+	flag.BoolVar(&cfg.PlayerMode, "playerMode", false, "Enable MLB player lookup mode")
 
 	flag.Parse()
 
