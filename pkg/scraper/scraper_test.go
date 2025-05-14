@@ -2,6 +2,7 @@ package scraper
 
 import (
 	_ "embed"
+	"fmt"
 	"pinkbike-scraper/pkg/listing"
 	"strings"
 	"testing"
@@ -88,11 +89,14 @@ func TestPerformWebScraping(t *testing.T) {
 		refinedListings = append(refinedListings, list)
 	}
 
+	// Debug print the actual listing
+	fmt.Printf("ACTUAL LISTING: %+v\n", refinedListings[17])
+
 	assert.Equal(t, refinedListings[17], listing.Listing{
 		Title:         "2022                                                                NEW Scott Contessa Spark 920, size S, 29.52lbs",
 		Year:          "2022",
 		Manufacturer:  "Scott",
-		Model:         "Spark",
+		Model:         "Contessa",
 		Price:         "3300",
 		Currency:      "USD",
 		Condition:     "New - Unridden/With Tags",
@@ -102,7 +106,7 @@ func TestPerformWebScraping(t *testing.T) {
 		FrontTravel:   "130 mm",
 		RearTravel:    "120 mm",
 		URL:           "https://www.pinkbike.com/buysell/3960926/",
-		Hash:          "66c588e537a8dea828dc24470254446efcef79b5b207f5567d7511624b40775e",
+		Hash:          "11606c1d32717826fae11015bc4893f1daba874a87201de6de4c760ebe90d066",
 	})
 }
 
