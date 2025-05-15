@@ -1,0 +1,1462 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>pinkbike-scraper: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">pinkbike-scraper/main.go (0.0%)</option>
+				
+				<option value="file1">pinkbike-scraper/pkg/db/db.go (0.0%)</option>
+				
+				<option value="file2">pinkbike-scraper/pkg/exporter/csv_exporter.go (0.0%)</option>
+				
+				<option value="file3">pinkbike-scraper/pkg/exporter/db_exporter.go (0.0%)</option>
+				
+				<option value="file4">pinkbike-scraper/pkg/exporter/sheets_exporter.go (0.0%)</option>
+				
+				<option value="file5">pinkbike-scraper/pkg/listing/listing.go (86.5%)</option>
+				
+				<option value="file6">pinkbike-scraper/pkg/scraper/scraper.go (49.1%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "encoding/csv"
+        "encoding/json"
+        "flag"
+        "fmt"
+        "io"
+        "log"
+        "net/http"
+        "os"
+        "strings"
+        "time"
+
+        "pinkbike-scraper/pkg/db"
+        "pinkbike-scraper/pkg/exporter"
+        "pinkbike-scraper/pkg/listing"
+        "pinkbike-scraper/pkg/scraper"
+)
+
+const (
+        urlBase       = "https://www.pinkbike.com/buysell/list/"
+        spreadsheetID = "16GYqn_Asp6_MhsJNAiMSphtUpJn6P1nNw-BRQG0s5Ik"
+)
+
+type Config struct {
+        // Input configuration
+        InputMode  string
+        FilePath   string
+        NumPages   int
+        BikeType   string
+        Headless   bool
+        GetDetails bool
+
+        // Export configuration
+        ExportModes    []string
+        SheetsCredPath string
+        SpreadsheetID  string
+        DBPath         string
+}
+
+type ExchangeRateResponse struct {
+        Rates map[string]float64
+}
+
+func main() <span class="cov0" title="0">{
+        cfg := parseFlags()
+
+        dbWorker, err := db.NewDBWorker(cfg.DBPath)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("could not create database worker: %v", err)
+        }</span>
+        <span class="cov0" title="0">defer dbWorker.Close()
+
+        scraper, err := scraper.NewScraper(
+                cfg.FilePath,
+                cfg.Headless,
+                urlBase,
+                getBikeType(cfg.BikeType),
+                dbWorker,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("could not create scraper: %v", err)
+        }</span>
+        <span class="cov0" title="0">defer scraper.Close()
+
+        // Setup exporters
+        exporters, err := setupExporters(cfg, dbWorker)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("failed to setup exporters: %v", err)
+        }</span>
+        <span class="cov0" title="0">defer func() </span><span class="cov0" title="0">{
+                for _, e := range exporters </span><span class="cov0" title="0">{
+                        e.Close()
+                }</span>
+        }()
+
+        // Get exchange rate
+        <span class="cov0" title="0">exchangeRate, err := getCADtoUSDExchangeRate()
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("could not get exchange rate: %v", err)
+        }</span>
+        <span class="cov0" title="0">fmt.Printf("CAD to USD exchange rate: %f\n", exchangeRate)
+
+        // Get listings
+        listings, err := getListings(cfg, dbWorker, scraper, exchangeRate)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("failed to get listings: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">if cfg.GetDetails </span><span class="cov0" title="0">{
+                listings, err = scraper.GetDetailedListings(listings)
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Fatalf("failed to get detailed listings: %v", err)
+                }</span>
+        }
+
+        // Export listings
+        <span class="cov0" title="0">for _, exp := range exporters </span><span class="cov0" title="0">{
+                if err := exp.Export(listings); err != nil </span><span class="cov0" title="0">{
+                        log.Printf("export error: %v", err)
+                }</span>
+        }
+}
+
+func parseFlags() *Config <span class="cov0" title="0">{
+        cfg := &amp;Config{}
+
+        // Input flags
+        flag.StringVar(&amp;cfg.InputMode, "input", "web", "Input mode: 'web', 'file', or 'db'")
+        flag.StringVar(&amp;cfg.FilePath, "filePath", "", "Path to input file when using file mode")
+        flag.IntVar(&amp;cfg.NumPages, "numPages", 5, "Number of pages to scrape in web mode")
+        flag.StringVar(&amp;cfg.BikeType, "bikeType", "enduro", "Type of bike to scrape")
+        flag.BoolVar(&amp;cfg.Headless, "headless", false, "Run browser in headless mode")
+        flag.BoolVar(&amp;cfg.GetDetails, "getDetails", false, "Get detailed listing information")
+
+        // Export flags
+        var exportModes string
+        flag.StringVar(&amp;exportModes, "export", "db", "Comma-separated list of export modes: 'csv', 'sheets', 'db'")
+        flag.StringVar(&amp;cfg.SheetsCredPath, "sheetsCredPath", "pinkbike-exporter-8bc8e681ffa1.json", "Path to Google Sheets credentials")
+        flag.StringVar(&amp;cfg.SpreadsheetID, "spreadsheetID", spreadsheetID, "Google Sheets spreadsheet ID")
+        flag.StringVar(&amp;cfg.DBPath, "dbPath", "listings.db", "Path to SQLite database")
+
+        flag.Parse()
+
+        // Parse export modes
+        cfg.ExportModes = strings.Split(exportModes, ",")
+        return cfg
+}</span>
+
+func setupExporters(cfg *Config, dbWorker *db.DBWorker) ([]exporter.Exporter, error) <span class="cov0" title="0">{
+        var exporters []exporter.Exporter
+
+        for _, mode := range cfg.ExportModes </span><span class="cov0" title="0">{
+                switch strings.TrimSpace(mode) </span>{
+                case "csv":<span class="cov0" title="0">
+                        fileName := getFileName(getBikeType(cfg.BikeType))
+                        csvExp := exporter.NewCSVExporter(
+                                "runs/"+fileName,
+                                "runs/suspect_"+fileName,
+                        )
+                        exporters = append(exporters, csvExp)</span>
+
+                case "sheets":<span class="cov0" title="0">
+                        sheetsExp, err := exporter.NewSheetsExporter(
+                                cfg.SheetsCredPath,
+                                cfg.SpreadsheetID,
+                        )
+                        if err != nil </span><span class="cov0" title="0">{
+                                return nil, fmt.Errorf("could not create sheets exporter: %v", err)
+                        }</span>
+                        <span class="cov0" title="0">exporters = append(exporters, sheetsExp)</span>
+
+                case "db":<span class="cov0" title="0">
+                        dbExp := exporter.NewDBExporter(dbWorker)
+                        exporters = append(exporters, dbExp)</span>
+                }
+        }
+
+        <span class="cov0" title="0">return exporters, nil</span>
+}
+
+func getListings(cfg *Config, dbWorker *db.DBWorker, scraper *scraper.Scraper, exchangeRate float64) ([]listing.Listing, error) <span class="cov0" title="0">{
+        switch cfg.InputMode </span>{
+        case "file":<span class="cov0" title="0">
+                return readListingsFromFile(cfg.FilePath)</span>
+        case "db":<span class="cov0" title="0">
+                return dbWorker.GetListings()</span>
+        case "web":<span class="cov0" title="0">
+                rawListings, err := scraper.PerformWebScraping(cfg.NumPages)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+                <span class="cov0" title="0">var refinedListings []listing.Listing
+                for _, l := range rawListings </span><span class="cov0" title="0">{
+                        refinedListings = append(refinedListings, l.PostProcess(exchangeRate))
+                }</span>
+                <span class="cov0" title="0">return refinedListings, nil</span>
+        default:<span class="cov0" title="0">
+                return nil, fmt.Errorf("invalid input mode: %s", cfg.InputMode)</span>
+        }
+}
+
+func getFileName(bikeType scraper.BikeType) string <span class="cov0" title="0">{
+        bt := string(bikeType)
+        fileName := fmt.Sprintf("%sListings%s.csv", bt, time.Now().Format("2006-01-02"))
+        return fileName
+}</span>
+
+func getBikeType(bikeType string) scraper.BikeType <span class="cov0" title="0">{
+        var bikeTypeVal scraper.BikeType
+        switch bikeType </span>{
+        case "enduro":<span class="cov0" title="0">
+                bikeTypeVal = scraper.Enduro</span>
+        case "trail":<span class="cov0" title="0">
+                bikeTypeVal = scraper.Trail</span>
+        case "xc":<span class="cov0" title="0">
+                bikeTypeVal = scraper.XC</span>
+        case "dh":<span class="cov0" title="0">
+                bikeTypeVal = scraper.DH</span>
+        default:<span class="cov0" title="0">
+                log.Fatalf("invalid bike type: %s", bikeType)</span>
+        }
+        <span class="cov0" title="0">return bikeTypeVal</span>
+}
+
+func getCADtoUSDExchangeRate() (float64, error) <span class="cov0" title="0">{
+        resp, err := http.Get("https://api.exchangerate-api.com/v4/latest/CAD")
+        if err != nil </span><span class="cov0" title="0">{
+                return 0, err
+        }</span>
+        <span class="cov0" title="0">defer resp.Body.Close()
+
+        body, err := io.ReadAll(resp.Body)
+        if err != nil </span><span class="cov0" title="0">{
+                return 0, err
+        }</span>
+
+        <span class="cov0" title="0">var data ExchangeRateResponse
+        err = json.Unmarshal(body, &amp;data)
+        if err != nil </span><span class="cov0" title="0">{
+                return 0, err
+        }</span>
+
+        <span class="cov0" title="0">return data.Rates["USD"], nil</span>
+}
+
+// ReadListingsFromFile reads listings from the configured file path
+func readListingsFromFile(filePath string) ([]listing.Listing, error) <span class="cov0" title="0">{
+        file, err := os.Open(filePath)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("could not open file: %v", err)
+        }</span>
+        <span class="cov0" title="0">defer file.Close()
+
+        reader := csv.NewReader(file)
+        records, err := reader.ReadAll()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("could not read file: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">listings := make([]listing.Listing, 0, len(records))
+        for _, record := range records </span><span class="cov0" title="0">{
+                l := listing.Listing{
+                        Title:         record[0],
+                        Year:          record[1],
+                        Price:         record[2],
+                        Currency:      record[3],
+                        Condition:     record[4],
+                        FrameSize:     record[5],
+                        WheelSize:     record[6],
+                        FrontTravel:   record[7],
+                        RearTravel:    record[8],
+                        FrameMaterial: record[9],
+                }
+
+                listings = append(listings, l)
+        }</span>
+
+        <span class="cov0" title="0">return listings, nil</span>
+}
+
+// todo implement "a.k.a" for models and manufacturers so that they all get normalized to a single name
+// priority is on the manufacturer though because we probably wont use the model name in the prediction
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package db
+
+import (
+        "database/sql"
+        "fmt"
+        "pinkbike-scraper/pkg/listing"
+)
+
+type DBWorker struct {
+        DB *sql.DB
+}
+
+func NewDBWorker(dbPath string) (*DBWorker, error) <span class="cov0" title="0">{
+        db, err := sql.Open("sqlite3", dbPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">if err := initializeDB(db); err != nil </span><span class="cov0" title="0">{
+                db.Close()
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return &amp;DBWorker{DB: db}, nil</span>
+}
+
+func (d *DBWorker) Close() error <span class="cov0" title="0">{
+        return d.DB.Close()
+}</span>
+
+func initializeDB(db *sql.DB) error <span class="cov0" title="0">{
+        // SQLite-compatible schema
+        createTableSQL := `
+    CREATE TABLE IF NOT EXISTS listings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        year TEXT,
+        manufacturer TEXT,
+        model TEXT,
+        price TEXT,
+        currency TEXT,
+        condition TEXT,
+        frame_size TEXT,
+        wheel_size TEXT,
+        front_travel TEXT,
+        rear_travel TEXT,
+        frame_material TEXT,
+                description TEXT,
+                restrictions TEXT,
+                seller_type TEXT,
+                original_post_date DATETIME,
+        needs_review TEXT,
+        url TEXT,
+        hash TEXT UNIQUE,
+        first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+        active INTEGER DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS price_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        listing_hash TEXT,
+        price TEXT,
+        currency TEXT,
+        recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(listing_hash) REFERENCES listings(hash)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_listings_hash ON listings(hash);
+    CREATE INDEX IF NOT EXISTS idx_price_history_listing_hash ON price_history(listing_hash);
+    `
+        _, err := db.Exec(createTableSQL)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to create table: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (d *DBWorker) ListingExistsWithDetails(hash string) (bool, error) <span class="cov0" title="0">{
+        var exists bool
+        err := d.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM listings WHERE hash = ? AND description = '')", hash).Scan(&amp;exists)
+        if err != nil </span><span class="cov0" title="0">{
+                return false, fmt.Errorf("failed to check if listing exists: %w", err)
+        }</span>
+        <span class="cov0" title="0">return exists, nil</span>
+}
+
+func (d *DBWorker) GetListings() ([]listing.Listing, error) <span class="cov0" title="0">{
+        rows, err := d.DB.Query(`
+                SELECT 
+                        title, year, manufacturer, model, price, currency,
+                        condition, frame_size, wheel_size, frame_material,
+                        front_travel, rear_travel, needs_review, url, hash,
+                        description, restrictions, seller_type, original_post_date,
+                        first_seen, last_seen, active
+                FROM listings
+                WHERE active = 1
+        `)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to query listings: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer rows.Close()
+
+        var listings []listing.Listing
+        for rows.Next() </span><span class="cov0" title="0">{
+                var l listing.Listing
+
+                err := rows.Scan(
+                        &amp;l.Title, &amp;l.Year, &amp;l.Manufacturer, &amp;l.Model, &amp;l.Price, &amp;l.Currency,
+                        &amp;l.Condition, &amp;l.FrameSize, &amp;l.WheelSize, &amp;l.FrameMaterial,
+                        &amp;l.FrontTravel, &amp;l.RearTravel, &amp;l.NeedsReview, &amp;l.URL, &amp;l.Hash,
+                        &amp;l.Details.Description, &amp;l.Details.Restrictions, &amp;l.Details.SellerType, &amp;l.Details.OriginalPostDate,
+                        &amp;l.FirstSeen, &amp;l.LastSeen, &amp;l.Active,
+                )
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("failed to scan listing: %w", err)
+                }</span>
+
+                <span class="cov0" title="0">listings = append(listings, l)</span>
+        }
+
+        <span class="cov0" title="0">if err = rows.Err(); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("error iterating rows: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return listings, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package exporter
+
+import (
+        "encoding/csv"
+        "fmt"
+        "os"
+        "pinkbike-scraper/pkg/listing"
+)
+
+type CSVExporter struct {
+        goodListingsPath    string
+        suspectListingsPath string
+}
+
+func NewCSVExporter(goodPath, suspectPath string) *CSVExporter <span class="cov0" title="0">{
+        return &amp;CSVExporter{
+                goodListingsPath:    goodPath,
+                suspectListingsPath: suspectPath,
+        }
+}</span>
+
+func (e *CSVExporter) Close() error <span class="cov0" title="0">{
+        return nil
+}</span>
+
+func (e *CSVExporter) Export(listings []listing.Listing) error <span class="cov0" title="0">{
+        if err := e.writeToFile(listings); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to write to CSV: %w", err)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (e *CSVExporter) writeToFile(listings []listing.Listing) error <span class="cov0" title="0">{
+        goodFile, err := os.Create(e.goodListingsPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">defer goodFile.Close()
+
+        suspectFile, err := os.Create(e.goodListingsPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">defer suspectFile.Close()
+
+        goodWriter := csv.NewWriter(goodFile)
+        defer goodWriter.Flush()
+
+        suspectWriter := csv.NewWriter(suspectFile)
+        defer suspectWriter.Flush()
+
+        csvHeaders := []string{"Title", "Year", "Manufacturer", "Model", "Price", "Currency", "Condition", "Frame Size", "Wheel Size", "Frame Material", "Front Travel", "Rear Travel", "Needs Review"}
+
+        err = goodWriter.Write(csvHeaders)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">err = suspectWriter.Write(csvHeaders)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">for _, l := range listings </span><span class="cov0" title="0">{
+                row := []string{l.Title, l.Year, l.Manufacturer, l.Model, l.Price, l.Currency, l.Condition, l.FrameSize, l.WheelSize, l.FrameMaterial, l.FrontTravel, l.RearTravel, l.NeedsReview}
+                if l.NeedsReview != "" </span><span class="cov0" title="0">{
+                        err = suspectWriter.Write(row)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return err
+                        }</span>
+                        <span class="cov0" title="0">continue</span>
+                }
+
+                <span class="cov0" title="0">err = goodWriter.Write(row)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package exporter
+
+import (
+        "database/sql"
+        "fmt"
+        "pinkbike-scraper/pkg/db"
+        "pinkbike-scraper/pkg/listing"
+
+        _ "github.com/mattn/go-sqlite3"
+)
+
+type DBExporter struct {
+        dbWorker *db.DBWorker
+}
+
+func NewDBExporter(dbWorker *db.DBWorker) *DBExporter <span class="cov0" title="0">{
+        return &amp;DBExporter{dbWorker: dbWorker}
+}</span>
+
+func (e *DBExporter) Export(listings []listing.Listing) error <span class="cov0" title="0">{
+        tx, err := e.dbWorker.DB.Begin()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to begin transaction: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer tx.Rollback()
+
+        if err := e.exportListings(tx, listings); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">if err := e.markInactiveListings(tx); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">return tx.Commit()</span>
+}
+
+func (e *DBExporter) Close() error <span class="cov0" title="0">{
+        return e.dbWorker.DB.Close()
+}</span>
+
+func (e *DBExporter) exportListings(tx *sql.Tx, listings []listing.Listing) error <span class="cov0" title="0">{
+        stmt, err := tx.Prepare(`
+        INSERT INTO listings (
+            title, year, manufacturer, model, price, currency, 
+            condition, frame_size, wheel_size, frame_material,
+            front_travel, rear_travel, needs_review, url, hash,
+            description, restrictions, seller_type, original_post_date,
+            first_seen, last_seen, active
+        ) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)
+        ON CONFLICT(hash) DO UPDATE SET 
+            last_seen = CURRENT_TIMESTAMP,
+            active = 1,
+            url = excluded.url,
+            price = excluded.price
+    `)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to prepare statement: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer stmt.Close()
+
+        for _, l := range listings </span><span class="cov0" title="0">{
+                if err := e.exportListing(stmt, tx, l); err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (e *DBExporter) exportListing(stmt *sql.Stmt, tx *sql.Tx, l listing.Listing) error <span class="cov0" title="0">{
+        if _, err := stmt.Exec(
+                l.Title, l.Year, l.Manufacturer, l.Model, l.Price,
+                l.Currency, l.Condition, l.FrameSize, l.WheelSize,
+                l.FrameMaterial, l.FrontTravel, l.RearTravel,
+                l.NeedsReview, l.URL, l.Hash,
+                l.Details.Description, l.Details.Restrictions, l.Details.SellerType, l.Details.OriginalPostDate,
+        ); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to insert listing: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return e.recordPriceHistory(tx, l)</span>
+}
+
+func (e *DBExporter) recordPriceHistory(tx *sql.Tx, l listing.Listing) error <span class="cov0" title="0">{
+        _, err := tx.Exec(`
+        INSERT INTO price_history (listing_hash, price, currency)
+        SELECT ?, ?, ?
+        WHERE NOT EXISTS (
+            SELECT 1 FROM price_history 
+            WHERE listing_hash = ? 
+            AND price = ? 
+            AND recorded_at &gt; datetime('now', '-1 day')
+        )
+    `, l.Hash, l.Price, l.Currency, l.Hash, l.Price)
+
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to record price history: %w", err)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (e *DBExporter) markInactiveListings(tx *sql.Tx) error <span class="cov0" title="0">{
+        _, err := tx.Exec(`
+        UPDATE listings 
+        SET active = 0 
+        WHERE datetime(last_seen) &lt; datetime('now', '-7 days')
+    `)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to mark inactive listings: %w", err)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package exporter
+
+import (
+        "context"
+        "fmt"
+        "pinkbike-scraper/pkg/listing"
+
+        "google.golang.org/api/drive/v3"
+        "google.golang.org/api/option"
+        "google.golang.org/api/sheets/v4"
+)
+
+type SheetsExporter struct {
+        service       *sheets.Service
+        spreadsheetID string
+}
+
+func NewSheetsExporter(credentialsFile, spreadsheetID string) (*SheetsExporter, error) <span class="cov0" title="0">{
+        ctx := context.Background()
+        srv, err := sheets.NewService(ctx, option.WithCredentialsFile(credentialsFile))
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to create sheets service: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return &amp;SheetsExporter{
+                service:       srv,
+                spreadsheetID: spreadsheetID,
+        }, nil</span>
+}
+
+func (e *SheetsExporter) Close() error <span class="cov0" title="0">{
+        return nil
+}</span>
+
+func (e *SheetsExporter) Export(listings []listing.Listing) error <span class="cov0" title="0">{
+        if err := e.appendToSheet(listings); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to export to sheets: %w", err)
+        }</span>
+        <span class="cov0" title="0">return e.removeDuplicates()</span>
+}
+
+func (e *SheetsExporter) appendToSheet(listings []listing.Listing) error <span class="cov0" title="0">{
+        // Create a new Google Sheets service client
+        ctx := context.Background()
+        srv, err := sheets.NewService(ctx, option.WithCredentialsFile("pinkbike-exporter-8bc8e681ffa1.json"))
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Unable to retrieve Sheets client: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">var values [][]interface{}
+        for _, l := range listings </span><span class="cov0" title="0">{
+                values = append(values, []interface{}{l.Title, l.Year, l.Manufacturer, l.Model, l.Price, l.Condition, l.
+                        FrameSize, l.WheelSize, l.FrontTravel, l.RearTravel, l.FrameMaterial, l.NeedsReview, l.Currency, l.URL})
+        }</span>
+
+        // Create the value range object
+        <span class="cov0" title="0">valueRange := &amp;sheets.ValueRange{
+                Values: values,
+        }
+
+        // Append the data to the sheet
+        appendRange := "Sheet1"
+        _, err = srv.Spreadsheets.Values.Append(e.spreadsheetID, appendRange, valueRange).ValueInputOption("USER_ENTERED").
+                InsertDataOption("INSERT_ROWS").Do()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Unable to append data to sheet: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// SendDeDuplicateRequestToGoogleSheets removes duplicate rows from the Google Sheets document
+// NOTE: Only the first match is kept! This means that when a listing's price changes, the old listing and old price will be kept.
+func (e *SheetsExporter) removeDuplicates() error <span class="cov0" title="0">{
+        // Remove duplicates from the sheet, considering only specific columns
+        deleteDuplicatesRequest := &amp;sheets.BatchUpdateSpreadsheetRequest{
+                Requests: []*sheets.Request{
+                        {
+                                DeleteDuplicates: &amp;sheets.DeleteDuplicatesRequest{
+                                        Range: &amp;sheets.GridRange{
+                                                SheetId:          0,
+                                                StartRowIndex:    0,
+                                                StartColumnIndex: 0,
+                                                EndColumnIndex:   12, // Include columns 0 to 11 (Title to FrameMaterial)
+                                        },
+                                        ComparisonColumns: []*sheets.DimensionRange{
+                                                {
+                                                        SheetId:    0,
+                                                        Dimension:  "COLUMNS",
+                                                        StartIndex: 0, // Title
+                                                        EndIndex:   3, // Model
+                                                },
+                                                {
+                                                        SheetId:    0,
+                                                        Dimension:  "COLUMNS",
+                                                        StartIndex: 6,  // Condition
+                                                        EndIndex:   11, // FrameMaterial
+                                                },
+                                        },
+                                },
+                        },
+                },
+        }
+
+        _, err := e.service.Spreadsheets.BatchUpdate(e.spreadsheetID, deleteDuplicatesRequest).Do()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Unable to remove duplicates from sheet: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func createSheetAndShare(ctx context.Context, srv *sheets.Service, title, email, credentialFile string) error <span class="cov0" title="0">{
+        sheet, err := srv.Spreadsheets.Create(&amp;sheets.Spreadsheet{
+                Properties: &amp;sheets.SpreadsheetProperties{
+                        Title: title,
+                },
+        }).Do()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Unable to create spreadsheet: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">fmt.Printf("Created new spreadsheet: %s\n", sheet.SpreadsheetUrl)
+
+        driveService, err := drive.NewService(ctx, option.WithCredentialsFile(credentialFile))
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Unable to retrieve Drive client: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">_, err = driveService.Permissions.Create(sheet.SpreadsheetId, &amp;drive.Permission{
+                Type:         "user",
+                Role:         "writer",
+                EmailAddress: email,
+        }).Do()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Unable to share spreadsheet: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package listing
+
+import (
+        "crypto/sha256"
+        "encoding/hex"
+        "fmt"
+        "math"
+        "regexp"
+        "strconv"
+        "strings"
+        "time"
+)
+
+type RawListing struct {
+        Title, Price, Condition, FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, URL, DetailsLink string
+}
+
+type Listing struct {
+        Title, Year, Manufacturer, Model, Price, Currency, Condition                         string
+        FrameSize, WheelSize, FrameMaterial, FrontTravel, RearTravel, NeedsReview, URL, Hash string
+        FirstSeen, LastSeen                                                                  time.Time
+        Active                                                                               bool
+        Details                                                                              ListingDetails
+}
+
+type ListingDetails struct {
+        SellerType       SellerType
+        OriginalPostDate time.Time
+        Description      string
+        Restrictions     string
+}
+
+type SellerType string
+
+const (
+        Private  SellerType = "private"
+        Business SellerType = "business"
+)
+
+func ParseSellerType(s string) SellerType <span class="cov8" title="1">{
+        s = strings.ToLower(strings.TrimSpace(s))
+        if strings.Contains(s, "business") </span><span class="cov8" title="1">{
+                return Business
+        }</span>
+        <span class="cov8" title="1">return Private</span>
+}
+
+func (l RawListing) Print() string <span class="cov0" title="0">{
+        return fmt.Sprintf("Title: %s\nPrice: %s\n\tCondition: %s\n\tFrame Size: %s\n\tWheel Size: %s\n\tFront Travel: %s\n\tRear Travel: %s\n\tFrame Material: %s\n\tURL: %s\n\t\n",
+                l.Title, l.Price, l.Condition, l.FrameSize, l.WheelSize, l.FrontTravel, l.RearTravel, l.FrameMaterial, l.URL)
+}</span>
+
+func (l RawListing) PostProcess(exchangeRate float64) Listing <span class="cov8" title="1">{
+        newL := Listing{
+                Title:         strings.ReplaceAll(l.Title, "\n", ""),
+                Year:          extractYear(l.Title),
+                Manufacturer:  extractManufacturer(l.Title),
+                Model:         extractModel(l.Title),
+                Currency:      extractCurrency(l.Price),
+                Price:         convertPrice(l.Price, extractCurrency(l.Price), exchangeRate),
+                Condition:     l.Condition,
+                FrameSize:     l.FrameSize,
+                WheelSize:     l.WheelSize,   //todo: convert to float - remove 650B
+                FrontTravel:   l.FrontTravel, //todo: remove mm
+                RearTravel:    l.RearTravel,  //todo: remove mm
+                FrameMaterial: l.FrameMaterial,
+                URL:           l.URL,
+        }
+        newL.Hash = newL.ComputeHash()
+
+        if reason := validateListing(newL); reason != "" </span><span class="cov8" title="1">{
+                newL.NeedsReview = reason
+        }</span>
+
+        <span class="cov8" title="1">return newL</span>
+}
+
+func validateListing(l Listing) string <span class="cov8" title="1">{
+        if l.Price == "" || l.Price == "0" </span><span class="cov8" title="1">{
+                return "price"
+        }</span>
+        <span class="cov8" title="1">if l.Year == "" </span><span class="cov8" title="1">{
+                return "year"
+        }</span>
+        <span class="cov8" title="1">if l.Manufacturer == "NoManufacturer" || l.Manufacturer == "" </span><span class="cov8" title="1">{
+                return "manufacturer"
+        }</span>
+        <span class="cov8" title="1">if l.Model == "NoModelFound" || strings.Contains(l.Model, "Electric") || l.Model == "" </span><span class="cov8" title="1">{
+                return "model"
+        }</span>
+        <span class="cov8" title="1">if l.Currency == "" </span><span class="cov0" title="0">{
+                return "currency"
+        }</span>
+        <span class="cov8" title="1">if l.Condition == "" </span><span class="cov0" title="0">{
+                return "condition"
+        }</span>
+        <span class="cov8" title="1">if l.FrameSize == "" </span><span class="cov0" title="0">{
+                return "frame size"
+        }</span>
+        <span class="cov8" title="1">if l.WheelSize == "" </span><span class="cov0" title="0">{
+                return "wheel size"
+        }</span>
+        <span class="cov8" title="1">if l.FrontTravel == "" </span><span class="cov0" title="0">{
+                return "front travel"
+        }</span>
+        <span class="cov8" title="1">if l.RearTravel == "" </span><span class="cov0" title="0">{
+                return "rear travel"
+        }</span>
+        <span class="cov8" title="1">if l.FrameMaterial == "" </span><span class="cov0" title="0">{
+                return "frame material"
+        }</span>
+
+        <span class="cov8" title="1">return ""</span>
+}
+
+func extractYear(title string) string <span class="cov8" title="1">{
+        // Look for years between 1980 and current year + 2 to avoid matching random 4-digit numbers
+        reg := regexp.MustCompile(`\b(19[8-9][0-9]|20[0-4][0-9])\b`)
+        s := reg.FindString(title)
+        return s
+}</span>
+
+func extractCurrency(price string) string <span class="cov8" title="1">{
+        reg := regexp.MustCompile(`(CAD|USD|cad|usd)`)
+        return strings.ToUpper(reg.FindString(price))
+}</span>
+
+func convertPrice(price, currency string, exchangeRate float64) string <span class="cov8" title="1">{
+        p := extractPrice(price)
+
+        floatPrice, err := strconv.ParseFloat(p, 32)
+        if err != nil </span><span class="cov8" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov8" title="1">if currency == "CAD" </span><span class="cov8" title="1">{
+                floatPrice = math.Round(floatPrice * exchangeRate)
+                p = fmt.Sprintf("%.0f", floatPrice)
+        }</span>
+
+        <span class="cov8" title="1">return p</span>
+}
+
+func extractPrice(price string) string <span class="cov8" title="1">{
+        reg := regexp.MustCompile(`[$]?([0-9,]+)`)
+        matches := reg.FindStringSubmatch(price)
+        if len(matches) &gt; 1 </span><span class="cov8" title="1">{
+                return strings.ReplaceAll(matches[1], ",", "")
+        }</span>
+        <span class="cov8" title="1">return ""</span>
+}
+
+func extractManufacturer(title string) string <span class="cov8" title="1">{
+        // Try to find manufacturers by looking for word boundaries
+        lowerTitle := strings.ToLower(title)
+        for _, manufacturer := range knownManufacturers </span><span class="cov8" title="1">{
+                // Use word boundary check with regular expression for more accurate matching
+                pattern := `(?i)\b` + regexp.QuoteMeta(manufacturer) + `\b`
+                matched, _ := regexp.MatchString(pattern, title)
+                if matched </span><span class="cov8" title="1">{
+                        return manufacturer
+                }</span>
+        }
+
+        // Fall back to simpler exact matches
+        <span class="cov8" title="1">for manufacturer := range bikeModels </span><span class="cov8" title="1">{
+                if strings.Contains(title, manufacturer) </span><span class="cov0" title="0">{
+                        return manufacturer
+                }</span>
+        }
+
+        // Last resort - case insensitive
+        <span class="cov8" title="1">for manufacturer := range bikeModels </span><span class="cov8" title="1">{
+                if strings.Contains(lowerTitle, strings.ToLower(manufacturer)) </span><span class="cov0" title="0">{
+                        return manufacturer
+                }</span>
+        }
+
+        <span class="cov8" title="1">return "NoManufacturer"</span>
+}
+
+func extractModel(title string) string <span class="cov8" title="1">{
+        manufacturer := extractManufacturer(title)
+        if manufacturer == "NoManufacturer" </span><span class="cov0" title="0">{
+                return "NoModelFound"
+        }</span>
+
+        <span class="cov8" title="1">bikes := bikeModels[manufacturer]
+        lowerTitle := strings.ToLower(title)
+
+        // Find the best match by prioritizing longer model names
+        var bestMatch BikeModel
+        bestMatchLength := 0
+
+        // Try exact matches first (case-sensitive)
+        for _, model := range bikes </span><span class="cov8" title="1">{
+                if strings.Contains(title, model.Name) &amp;&amp; len(model.Name) &gt; bestMatchLength </span><span class="cov8" title="1">{
+                        bestMatch = model
+                        bestMatchLength = len(model.Name)
+                }</span>
+        }
+
+        // If no exact match, try case-insensitive with word boundaries
+        <span class="cov8" title="1">if bestMatchLength == 0 </span><span class="cov8" title="1">{
+                for _, model := range bikes </span><span class="cov8" title="1">{
+                        modelPattern := `(?i)\b` + regexp.QuoteMeta(model.Name) + `\b`
+                        matched, _ := regexp.MatchString(modelPattern, title)
+                        if matched &amp;&amp; len(model.Name) &gt; bestMatchLength </span><span class="cov8" title="1">{
+                                bestMatch = model
+                                bestMatchLength = len(model.Name)
+                        }</span>
+                }
+        }
+
+        // If still no match, try simple case-insensitive contains
+        <span class="cov8" title="1">if bestMatchLength == 0 </span><span class="cov8" title="1">{
+                for _, model := range bikes </span><span class="cov8" title="1">{
+                        if strings.Contains(lowerTitle, strings.ToLower(model.Name)) &amp;&amp; len(model.Name) &gt; bestMatchLength </span><span class="cov0" title="0">{
+                                bestMatch = model
+                                bestMatchLength = len(model.Name)
+                        }</span>
+                }
+        }
+
+        // No match found
+        <span class="cov8" title="1">if bestMatchLength == 0 </span><span class="cov8" title="1">{
+                return "NoModelFound"
+        }</span>
+
+        // Return match with electric suffix if necessary
+        <span class="cov8" title="1">if bestMatch.Purpose == Electric </span><span class="cov8" title="1">{
+                return bestMatch.Name + " Electric"
+        }</span>
+        <span class="cov8" title="1">return bestMatch.Name</span>
+}
+
+func (l Listing) ComputeHash() string <span class="cov8" title="1">{
+        // Combine fields that would uniquely identify a bike listing
+        uniqueString := strings.Join([]string{
+                strings.ToLower(l.Title),
+                l.Year,
+                l.Model,
+                strings.ToLower(l.Condition),
+                strings.ToLower(l.FrameSize),
+                strings.ToLower(l.FrameMaterial),
+                l.FrontTravel,
+                l.RearTravel,
+        }, "|")
+
+        hasher := sha256.New()
+        hasher.Write([]byte(uniqueString))
+        return hex.EncodeToString(hasher.Sum(nil))
+}</span>
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package scraper
+
+import (
+        "fmt"
+        "log"
+        "regexp"
+        "strings"
+        "time"
+
+        "github.com/playwright-community/playwright-go"
+
+        "pinkbike-scraper/pkg/db"
+        "pinkbike-scraper/pkg/listing"
+)
+
+var (
+        Enduro BikeType = "enduro"
+        Trail  BikeType = "trail"
+        XC     BikeType = "xc"
+        DH     BikeType = "dh"
+)
+
+// biketype enum
+type BikeType string
+
+// Scraper holds configuration for scraping operations
+type Scraper struct {
+        filePath string
+        headless bool
+        pw       *playwright.Playwright
+        browser  playwright.Browser
+        baseUrl  string
+        dbWorker *db.DBWorker
+        page     playwright.Page
+}
+
+// NewScraper creates and returns a new Scraper instance
+func NewScraper(filePath string, headless bool, baseUrl string, bikeType BikeType, dbWorker *db.DBWorker) (*Scraper, error) <span class="cov0" title="0">{
+        err := playwright.Install()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("could not install playwright: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">pw, err := playwright.Run()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("could not start playwright: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+                Headless: playwright.Bool(headless),
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                pw.Stop()
+                return nil, fmt.Errorf("could not launch browser: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">page, err := browser.NewPage()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("could not create page: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">url := getListingsUrl(baseUrl, bikeType)
+
+        resp, err := page.Goto(url)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("could not goto: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">if resp.Status() != 200 </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("could not get 200 status: %v", resp.Status())
+        }</span>
+
+        <span class="cov0" title="0">return &amp;Scraper{
+                filePath: filePath,
+                headless: headless,
+                pw:       pw,
+                browser:  browser,
+                baseUrl:  baseUrl,
+                page:     page,
+                dbWorker: dbWorker,
+        }, nil</span>
+}
+
+// Close cleanly shuts down the scraper
+func (s *Scraper) Close() error <span class="cov0" title="0">{
+        if err := s.browser.Close(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("could not close browser: %v", err)
+        }</span>
+        <span class="cov0" title="0">if err := s.pw.Stop(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("could not stop Playwright: %v", err)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+// PerformWebScraping performs the web scraping operation
+func (s *Scraper) PerformWebScraping(numPages int) ([]listing.RawListing, error) <span class="cov8" title="1">{
+        fmt.Println("Scraping page: 1")
+
+        listings, nextPageURL, err := scrapePage(s.page)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("could not scrape page: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">var newListings []listing.RawListing
+        pages := 1
+        for nextPageURL != "" &amp;&amp; pages &lt; numPages </span><span class="cov0" title="0">{
+                pages++
+                fmt.Println("Scraping page: ", pages)
+
+                if _, err = s.page.Goto(s.baseUrl + nextPageURL); err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("could not goto: %v", err)
+                }</span>
+
+                <span class="cov0" title="0">newListings, nextPageURL, err = scrapePage(s.page)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("could not scrape page: %v", err)
+                }</span>
+
+                <span class="cov0" title="0">listings = append(listings, newListings...)</span>
+        }
+
+        <span class="cov8" title="1">return listings, nil</span>
+}
+
+func (s *Scraper) GetDetailedListings(listings []listing.Listing) ([]listing.Listing, error) <span class="cov0" title="0">{
+        page, err := s.browser.NewPage()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("could not create page: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">listingsWithDetails := []listing.Listing{}
+
+        for _, l := range listings </span><span class="cov0" title="0">{
+                // if listing exists in db, and has details, skip
+                exists, err := s.dbWorker.ListingExistsWithDetails(l.Hash)
+                if err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("could not check if listing exists: %v", err)
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">if exists </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                // if listing exists in db, and does not have details, perform details scrape
+                <span class="cov0" title="0">resp, err := page.Goto(l.URL)
+                if err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("could not goto: %v", err)
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">if resp.Status() != 200 </span><span class="cov0" title="0">{
+                        fmt.Printf("could not get 200 status: %v", resp.Status())
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">details, err := s.detailsScrape(page)
+                if err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("could not scrape details: %v", err)
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">l.Details = *details
+                listingsWithDetails = append(listingsWithDetails, l)</span>
+        }
+
+        <span class="cov0" title="0">return listingsWithDetails, nil</span>
+}
+
+func (s *Scraper) detailsScrape(page playwright.Page) (*listing.ListingDetails, error) <span class="cov8" title="1">{
+        details := listing.ListingDetails{}
+
+        sellerType, err := page.Locator(`xpath=//div[contains(@class, "buysell-details-column")]//b[contains(text(), "Seller Type")]/parent::*`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("\tcould not get seller type: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">originalPostDate, err := page.Locator(`xpath=//div[contains(@class, "buysell-details-column")]//b[contains(text(), "Original Post Date")]//parent::div`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("\tcould not get original post date: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">dateRegex := regexp.MustCompile(`Original Post Date:\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-\d{2}-\d{4})`)
+        matches := dateRegex.FindStringSubmatch(originalPostDate)
+        if len(matches) &lt; 2 </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("\tcould not find date in string: %s", originalPostDate)
+        }</span>
+
+        <span class="cov8" title="1">postDate, err := time.Parse("Jan-02-2006", matches[1])
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("\tcould not parse original post date: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">description, err := page.Locator(`xpath=//div[contains(@class, 'buysell-container description')]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("\tcould not get description: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">restrictions, err := page.Locator(`.buysell-container-right.buysell-restrictions .buysell-container`).TextContent(playwright.LocatorTextContentOptions{
+                Timeout: playwright.Float(1000),
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("\tcould not get restrictions: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">restrictions = strings.Split(restrictions, "Phone Number:")[0]
+
+        details.SellerType = listing.ParseSellerType(parseItemDetail(sellerType, "Seller Type:"))
+        details.OriginalPostDate = postDate
+        details.Description = description
+        details.Restrictions = parseItemDetail(restrictions, "Restrictions:")
+
+        return &amp;details, nil</span>
+}
+
+func getListingsUrl(urlBase string, bikeType BikeType) string <span class="cov0" title="0">{
+        switch bikeType </span>{
+        case Enduro:<span class="cov0" title="0">
+                return urlBase + "/?category=2"</span>
+        case Trail:<span class="cov0" title="0">
+                return urlBase + "/?category=102"</span>
+        case XC:<span class="cov0" title="0">
+                return urlBase + "/?category=75"</span>
+        case DH:<span class="cov0" title="0">
+                return urlBase + "/?category=1"</span>
+        default:<span class="cov0" title="0">
+                log.Fatalf("invalid bike type: %s", bikeType)
+                return ""</span>
+        }
+}
+
+// todo implement an auto-dedupe function that will compare each parsed listing from the page and will not add it to the list if it already exists
+
+func scrapePage(page playwright.Page) ([]listing.RawListing, string, error) <span class="cov8" title="1">{
+        entries, err := page.Locator("tr.bsitem-table").All()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, "", fmt.Errorf("could not get entries: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">var sanitizedListings []listing.RawListing
+        for _, entry := range entries </span><span class="cov8" title="1">{
+                sanitizedListings = append(sanitizedListings, getListing(entry))
+        }</span>
+
+        // Find the "Next Page" link
+        <span class="cov8" title="1">nextPageLink := page.Locator(`xpath=//a[text()='Next']`)
+
+        // Get the URL of the "Next Page" link
+        nextPageURL, err := nextPageLink.GetAttribute("href")
+        if err != nil </span><span class="cov0" title="0">{
+                // If an error occurred, the link was not found
+                nextPageURL = ""
+        }</span>
+
+        <span class="cov8" title="1">return sanitizedListings, nextPageURL, nil</span>
+}
+
+func getListing(entry playwright.Locator) listing.RawListing <span class="cov8" title="1">{
+        titleElement := entry.Locator("div.bsitem-title &gt; a")
+        title, err := titleElement.TextContent()
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("\tcould not get title")
+        }</span>
+        <span class="cov8" title="1">title = strings.ReplaceAll(title, "\n", "")
+
+        link, err := titleElement.GetAttribute("href")
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("\tcould not get title")
+        }</span>
+
+        <span class="cov8" title="1">url, err := entry.Locator("div.bsitem-title &gt; a").GetAttribute("href")
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("\tcould not get url")
+        }</span>
+
+        <span class="cov8" title="1">condition, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Condition")]]`).InnerText(playwright.LocatorInnerTextOptions{Timeout: playwright.Float(1000)})
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("\tcould not get condition")
+        }</span>
+
+        <span class="cov8" title="1">frameSize, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Frame Size")]]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("\tcould not get frame size")
+        }</span>
+
+        <span class="cov8" title="1">wheelSize, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Wheel Size")]]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("\tcould not get wheel size")
+        }</span>
+
+        <span class="cov8" title="1">frontTravel, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Front Travel")]]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+        if err != nil </span><span class="cov8" title="1">{
+                fmt.Println("\tcould not get front travel")
+        }</span>
+
+        <span class="cov8" title="1">rearTravel, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Rear Travel")]]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+        if err != nil </span><span class="cov8" title="1">{
+                fmt.Println("\tcould not get rear travel")
+        }</span>
+
+        <span class="cov8" title="1">material, err := entry.Locator(`xpath=./descendant::div[b[contains(text(), "Material")]]`).TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("\tcould not get material")
+        }</span>
+
+        <span class="cov8" title="1">price, err := entry.Locator("td.bsitem-price &gt; b").TextContent(playwright.LocatorTextContentOptions{Timeout: playwright.Float(1000)})
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("\tcould not get price")
+        }</span>
+
+        <span class="cov8" title="1">l := listing.RawListing{
+                Title:         title,
+                Price:         price,
+                Condition:     condition,
+                FrameSize:     frameSize,
+                WheelSize:     wheelSize,
+                FrontTravel:   frontTravel,
+                RearTravel:    rearTravel,
+                FrameMaterial: material,
+                URL:           url,
+                DetailsLink:   link,
+        }
+
+        return sanitize(l)</span>
+}
+
+// Sanitize will remove spaces and labels from the listing
+func sanitize(l listing.RawListing) listing.RawListing <span class="cov8" title="1">{
+        newL := listing.RawListing{}
+
+        newL.Title = strings.TrimSpace(l.Title)
+        newL.Price = strings.TrimSpace(l.Price)
+        newL.Condition = parseItemDetail(l.Condition, "Condition :")
+        newL.FrameSize = parseItemDetail(l.FrameSize, "Frame Size :")
+        newL.WheelSize = parseItemDetail(l.WheelSize, "Wheel Size :")
+        newL.FrontTravel = parseItemDetail(l.FrontTravel, "Front Travel :")
+        newL.RearTravel = parseItemDetail(l.RearTravel, "Rear Travel :")
+        newL.FrameMaterial = parseItemDetail(l.FrameMaterial, "Material :")
+        newL.URL = strings.TrimSpace(l.URL)
+
+        return newL
+}</span>
+
+func parseItemDetail(detail, label string) string <span class="cov8" title="1">{
+        split := strings.Split(detail, label)
+        if len(split) &lt; 2 </span><span class="cov8" title="1">{
+                return ""
+        }</span>
+
+        <span class="cov8" title="1">s := strings.TrimSpace(split[1])
+        s = strings.ReplaceAll(s, `"`, "")
+
+        return s</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

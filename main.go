@@ -15,6 +15,7 @@ import (
 	"pinkbike-scraper/pkg/db"
 	"pinkbike-scraper/pkg/exporter"
 	"pinkbike-scraper/pkg/listing"
+	"pinkbike-scraper/pkg/mlb"
 	"pinkbike-scraper/pkg/scraper"
 )
 
@@ -32,6 +33,10 @@ type Config struct {
 	Headless   bool
 	GetDetails bool
 
+	// MLB configuration
+	MLBMode     bool
+	PlayerName  string
+
 	// Export configuration
 	ExportModes    []string
 	SheetsCredPath string
@@ -45,6 +50,12 @@ type ExchangeRateResponse struct {
 
 func main() {
 	cfg := parseFlags()
+
+	// Handle MLB mode separately
+	if cfg.MLBMode {
+		handleMLBCommand(cfg)
+		return
+	}
 
 	dbWorker, err := db.NewDBWorker(cfg.DBPath)
 	if err != nil {
@@ -113,6 +124,10 @@ func parseFlags() *Config {
 	flag.StringVar(&cfg.BikeType, "bikeType", "enduro", "Type of bike to scrape")
 	flag.BoolVar(&cfg.Headless, "headless", false, "Run browser in headless mode")
 	flag.BoolVar(&cfg.GetDetails, "getDetails", false, "Get detailed listing information")
+
+	// MLB flags
+	flag.BoolVar(&cfg.MLBMode, "mlb", false, "Enable MLB player data mode")
+	flag.StringVar(&cfg.PlayerName, "player", "", "Player name to search for (leave empty for random player)")
 
 	// Export flags
 	var exportModes string
@@ -262,3 +277,62 @@ func readListingsFromFile(filePath string) ([]listing.Listing, error) {
 
 // todo implement "a.k.a" for models and manufacturers so that they all get normalized to a single name
 // priority is on the manufacturer though because we probably wont use the model name in the prediction
+
+// handleMLBCommand handles the MLB player data command
+func handleMLBCommand(cfg *Config) {
+	client := mlb.NewClient()
+
+	if cfg.PlayerName != "" {
+		// Search for a specific player
+		fmt.Printf("Searching for player: %s\n", cfg.PlayerName)
+		players, err := client.GetPlayerByName(cfg.PlayerName)
+		if err != nil {
+			log.Fatalf("Error getting player data: %v", err)
+		}
+
+		if len(players) == 0 {
+			fmt.Println("No players found matching that name")
+			return
+		}
+
+		// Display all matching players
+		fmt.Printf("Found %d player(s) matching '%s':\n\n", len(players), cfg.PlayerName)
+		for i, player := range players {
+			printPlayerInfo(i+1, &player)
+		}
+	} else {
+		// Get a random player
+		fmt.Println("Fetching data for a random MLB player...")
+		player, err := client.GetRandomPlayer()
+		if err != nil {
+			log.Fatalf("Error getting random player data: %v", err)
+		}
+
+		// Display player information
+		printPlayerInfo(1, player)
+	}
+}
+
+// printPlayerInfo prints formatted player information
+func printPlayerInfo(index int, player *mlb.Player) {
+	fmt.Printf("Player #%d:\n", index)
+	fmt.Printf("  Name: %s %s\n", player.FirstName, player.LastName)
+	fmt.Printf("  Position: %s (%s)\n", player.PrimaryPosition.Name, player.PrimaryPosition.Abbreviation)
+	fmt.Printf("  Team: %s\n", player.TeamName)
+	fmt.Printf("  Bats: %s, Throws: %s\n", player.BatSide.Description, player.ThrowSide.Description)
+	fmt.Printf("  Country: %s\n", player.BirthCountry)
+	
+	if player.Jersey != "" {
+		fmt.Printf("  Jersey: %s\n", player.Jersey)
+	}
+	
+	if player.Height != "" || player.Weight > 0 {
+		fmt.Printf("  Height/Weight: %s / %d\n", player.Height, player.Weight)
+	}
+	
+	if player.Status != "" {
+		fmt.Printf("  Status: %s\n", player.Status)
+	}
+	
+	fmt.Println()
+}
