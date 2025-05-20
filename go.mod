@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/mattn/go-sqlite3 v1.14.23
 	github.com/playwright-community/playwright-go v0.4201.1
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.10.0
 	google.golang.org/api v0.181.0
 )
 
@@ -13,6 +13,7 @@ require (
 	cloud.google.com/go/auth v0.4.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.2 // indirect
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
+	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set/v2 v2.6.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
