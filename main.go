@@ -15,7 +15,6 @@ import (
 	"pinkbike-scraper/pkg/db"
 	"pinkbike-scraper/pkg/exporter"
 	"pinkbike-scraper/pkg/listing"
-	"pinkbike-scraper/pkg/mlb"
 	"pinkbike-scraper/pkg/scraper"
 )
 
@@ -50,12 +49,6 @@ type ExchangeRateResponse struct {
 
 func main() {
 	cfg := parseFlags()
-
-	// Check if MLB command was requested
-	if cfg.MLBPlayerName != "" || cfg.MLBRandomPlayer {
-		handleMLBCommand(cfg)
-		return
-	}
 
 	dbWorker, err := db.NewDBWorker(cfg.DBPath)
 	if err != nil {
@@ -277,38 +270,3 @@ func readListingsFromFile(filePath string) ([]listing.Listing, error) {
 
 // todo implement "a.k.a" for models and manufacturers so that they all get normalized to a single name
 // priority is on the manufacturer though because we probably wont use the model name in the prediction
-
-// handleMLBCommand handles the MLB player data command
-func handleMLBCommand(cfg *Config) {
-	client := mlb.NewClient()
-
-	var player *mlb.Player
-	var err error
-
-	if cfg.MLBRandomPlayer {
-		fmt.Println("Fetching random MLB player...")
-		player, err = client.GetRandomPlayer()
-		if err != nil {
-			log.Fatalf("Error getting random player: %v", err)
-		}
-	} else if cfg.MLBPlayerName != "" {
-		fmt.Printf("Searching for player: %s\n", cfg.MLBPlayerName)
-		players, err := client.SearchPlayer(cfg.MLBPlayerName)
-		if err != nil {
-			log.Fatalf("Error searching for player: %v", err)
-		}
-
-		if len(players) == 0 {
-			log.Fatalf("No players found with name: %s", cfg.MLBPlayerName)
-		}
-
-		// Use the first player found
-		player, err = client.GetPlayerDetails(players[0].PlayerID)
-		if err != nil {
-			log.Fatalf("Error getting player details: %v", err)
-		}
-	}
-
-	// Print player information
-	fmt.Println(player)
-}
