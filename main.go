@@ -15,6 +15,7 @@ import (
 	"pinkbike-scraper/pkg/db"
 	"pinkbike-scraper/pkg/exporter"
 	"pinkbike-scraper/pkg/listing"
+	"pinkbike-scraper/pkg/mlb"
 	"pinkbike-scraper/pkg/scraper"
 )
 
@@ -37,6 +38,10 @@ type Config struct {
 	SheetsCredPath string
 	SpreadsheetID  string
 	DBPath         string
+
+	// MLB configuration
+	MLBPlayerName string
+	MLBTestAPI    bool
 }
 
 type ExchangeRateResponse struct {
@@ -45,6 +50,23 @@ type ExchangeRateResponse struct {
 
 func main() {
 	cfg := parseFlags()
+
+	// Check if MLB test flag is set
+	if cfg.MLBTestAPI {
+		fmt.Println("Testing MLB API connection...")
+		if err := mlb.TestAPIConnection(); err != nil {
+			log.Fatalf("MLB API test error: %v", err)
+		}
+		return
+	}
+
+	// Check if MLB player flag is set
+	if cfg.MLBPlayerName != "" {
+		if err := mlb.HandleMLBPlayerCommand(cfg.MLBPlayerName); err != nil {
+			log.Fatalf("MLB player error: %v", err)
+		}
+		return
+	}
 
 	dbWorker, err := db.NewDBWorker(cfg.DBPath)
 	if err != nil {
@@ -120,6 +142,10 @@ func parseFlags() *Config {
 	flag.StringVar(&cfg.SheetsCredPath, "sheetsCredPath", "pinkbike-exporter-8bc8e681ffa1.json", "Path to Google Sheets credentials")
 	flag.StringVar(&cfg.SpreadsheetID, "spreadsheetID", spreadsheetID, "Google Sheets spreadsheet ID")
 	flag.StringVar(&cfg.DBPath, "dbPath", "listings.db", "Path to SQLite database")
+
+	// MLB flags
+	flag.StringVar(&cfg.MLBPlayerName, "mlb-player", "", "MLB player name to search for")
+	flag.BoolVar(&cfg.MLBTestAPI, "mlb-test", false, "Test MLB API connection")
 
 	flag.Parse()
 
